@@ -1,0 +1,696 @@
+---
+title: "Verifica Deep Learning On Tempora Data"
+author: "Guarino Renata"
+date: "2024-06-29"
+output:
+  html_document: default
+---
+
+# Studio di Serie Storiche dei Dati Giornalieri di Tesla (TSLA) con ARIMA e SARIMA
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+ 
+# Introduzione
+
+# Questo studio ha condotto un'analisi approfondita utilizzando dati giornalieri relativi al titolo Tesla (TSLA) dal gennaio 2020 al gennaio 2024, ottenuti dal sito investing.com. Il dataset include sei variabili principali: Data, Ultimo, Apertura, Massimo, Minimo, Volume (Vol.), e Variazione Percentuale (Var. %). Il dataset è disponibile al seguente link: [Tesla Motors su Investing.com](https://it.investing.com/equities/tesla-motors).
+
+
+## Analisi svolta:
+
+
+### - Analisi Esplorativa dei Dati
+
+# È stata condotta un'analisi esplorativa per comprendere la distribuzione e le tendenze delle variabili nel periodo considerato. Sono state esaminate le statistiche descrittive, i grafici di andamento temporale e le relazioni tra le variabili.
+
+
+### - Stagionalità e Stazionarietà
+
+# È stata, dunque, eseguita un'analisi per valutare la stagionalità e la stazionarietà delle serie storiche. È stata esaminata la decomposizione STL (Seasonal and Trend decomposition using Loess) per analizzare la componente stagionale delle variabili. Questo ha permesso di visualizzare e analizzare le fluttuazioni distintive all'interno dei dati.
+
+
+### - Modellazione con ARIMA e SARIMA
+
+# Sono stati applicati modelli ARIMA (Autoregressive Integrated Moving Average) per ciascuna variabile al fine di catturare le componenti di tendenza e stagionalità nei dati giornalieri di Tesla (TSLA). Inoltre, è stato implementato il modello SARIMA (Seasonal ARIMA) per gestire esplicitamente le componenti stagionali, considerando l'intervallo temporale giornaliero dei dati.
+
+
+## Descrizione delle Variabili:
+
+# 1. **Data**: Rappresenta le date della serie temporale, che va da gennaio 2020 a gennaio 2024, con dati giornalieri.
+
+# 2. **Ultimo**: Rappresenta il prezzo di chiusura dell'azione TSLA al termine di ogni giornata di negoziazione.
+
+# 3. **Apertura**: Indica il prezzo di apertura dell'azione TSLA all'inizio di ogni giornata di negoziazione.
+
+# 4. **Massimo**: Specifica il prezzo massimo raggiunto dall'azione TSLA durante il giorno di negoziazione.
+
+# 5. **Minimo**: Indica il prezzo minimo raggiunto dall'azione TSLA durante il giorno di negoziazione.
+
+# 6. **Volume (Vol.)**: Rappresenta il numero totale di azioni di TSLA scambiate durante la giornata di negoziazione.
+
+# 7. **Variazione Percentuale (Var. %)**: Indica la variazione percentuale del prezzo di chiusura di TSLA rispetto al giorno precedente.
+
+
+# "Caricamento delle librerie e analisi preliminare del dataset"
+
+# Carica le librerie necessarie
+
+library(stats)
+library(fBasics)
+library(moments)
+library(fracdiff)
+library(lmtest)
+library(timeDate)
+library(TSA)
+library(timeSeries)
+library(tseries)
+library(forecast)
+library(FinTS)
+library(sarima)
+library(fUnitRoots)
+library(urca)
+library(ggplot2)
+library(readr)
+library(dbplyr)
+ 
+
+# Leggi il dataset specificando il separatore corretto
+data <- read_delim("TSLA.csv", delim = ";")
+
+# Verifica le prime righe del dataset per assicurarti che sia stato letto correttamente
+head(data)
+
+# Visualizzare la struttura del dataset
+str(data)
+
+# Visualizzare il numero di righe e colonne del dataset
+dim(data)
+
+# Visualizzare i nomi delle colonne del dataset
+colnames(data)
+
+# Verifica se ci sono valori mancanti (NA) in ciascuna colonna
+missing_values <- sapply(data, function(x) sum(is.na(x)))
+
+# Stampare i risultati
+print(missing_values)
+
+
+
+# "Pulizia dei dati: rimozione di caratteri non numerici"
+
+# Rimuovere il carattere 'M' dalla colonna Vol. senza convertire in numeri
+data$Vol. <- gsub("M", "", data$Vol., fixed = TRUE)
+
+# Rimuovere il simbolo percentuale dalla colonna Var. % senza convertire in numeri
+data$`Var. %` <- gsub("%", "", data$`Var. %`, fixed = TRUE)
+
+# Verifica le prime righe del dataset dopo le modifiche
+head(data)
+
+
+# "Pulizia dei dati: conversione del formato numerico e verifica"
+
+# Sostituire la virgola con il punto come separatore decimale
+data$Vol. <- gsub(",", ".", data$Vol., fixed = TRUE)
+data$`Var. %` <- gsub(",", ".", data$`Var. %`, fixed = TRUE)
+
+# Convertire in numerico
+data$Vol. <- as.numeric(data$Vol.)
+data$`Var. %` <- as.numeric(data$`Var. %`)
+
+# Verifica le prime righe del dataset dopo le modifiche
+head(data)
+
+
+
+
+
+
+# "Test di normalità Shapiro-Wilk su colonne numeriche"
+
+# Esegui il test di Shapiro-Wilk su tutte le colonne numeriche eccetto "Data"
+numeric_columns <- sapply(data, is.numeric)
+data_to_test <- data[, numeric_columns & colnames(data) != "Data"]
+
+# Esegui il test di Shapiro-Wilk
+shapiro_results <- lapply(data_to_test, function(x) shapiro.test(x))
+
+# Mostra i risultati
+names(shapiro_results) <- colnames(data_to_test)
+shapiro_results
+
+# ------------------------------------------------
+# Commento sui Risultati dei Test di Normalità di Shapiro-Wilk
+# ------------------------------------------------
+# 
+# I risultati dei test di normalità di Shapiro-Wilk sono stati esaminati per valutare la distribuzione delle variabili nel dataset, esclusa la variabile 'Data'. Questi test sono utilizzati per verificare se le distribuzioni delle variabili seguono una distribuzione normale.
+# 
+# Per la variabile 'Ultimo', il test ha restituito un valore di W = 0.94284 con un p-value molto basso (< 2.2e-16), indicando che la variabile non segue una distribuzione normale.
+# 
+# Analogamente, le variabili 'Apertura', 'Massimo', 'Minimo', e 'Vol.' mostrano p-values molto bassi (< 2.2e-16) con valori di W compresi tra 0.76564 e 0.94284, confermando che queste variabili non sono distribuite normalmente.
+# 
+# La variabile 'Var. %' ha un valore di W pari a 0.96425 con un p-value di 5.115e-15, il che suggerisce una distribuzione più vicina alla normalità rispetto alle altre variabili, ma ancora significativamente diversa da una distribuzione normale.
+# 
+# In conclusione, i test di Shapiro-Wilk hanno evidenziato che le variabili nel dataset, ad eccezione di 'Var. %', non seguono una distribuzione normale. Questa informazione è cruciale per l'applicazione di metodi statistici che assumono normalità nei dati, suggerendo la necessità di considerare approcci alternativi o trasformazioni dei dati durante l'analisi.
+# ------------------------------------------------
+
+# "Visualizzazione delle distribuzioni delle variabili numeriche"
+
+# Calcola il numero di righe nel dataset
+N <- nrow(data)
+
+# Colori per i grafici
+colors <- c("red", "blue", "green", "orange", "purple", "pink")
+
+# Imposta il layout dei grafici
+par(mfrow = c(2, 3))
+
+# Loop per creare gli istogrammi
+for (i in 1:length(shapiro_results)) {
+  var_name <- names(shapiro_results)[i]
+  
+  # Istogramma per la variabile i-esima
+  hist(data[[var_name]], col = colors[i], main = paste("Distribuzione di", var_name), xlab = "", prob = TRUE)
+}
+
+
+
+
+#### Deep Learning su Dati Temporali
+
+
+
+# ------------------------------------------------
+# Analisi di Stazionarietà della Serie Temporale
+# ------------------------------------------------
+# 
+# Nella fase iniziale dell'analisi, la colonna 'Data' viene convertita nel formato di classe "Date" utilizzando la funzione `as.Date()`. Questo passaggio è cruciale per trattare le date come oggetti temporali nel processo analitico, consentendo una gestione appropriata delle serie temporali.
+# 
+# Successivamente, vengono identificate le colonne numeriche nel dataset, escludendo 'Data' se presente, utilizzando la funzione `sapply()` in combinazione con `is.numeric()`. Queste colonne numeriche sono necessarie per l'esecuzione del test Augmented Dickey-Fuller (ADF) per valutare la stazionarietà delle serie.
+# 
+# Per ogni colonna numerica identificata, viene eseguito il test ADF utilizzando la funzione `adf.test()` con l'opzione `alternative = "stationary"`. Il test ADF è un metodo statistico utilizzato per determinare se una serie temporale è stazionaria o meno. I risultati del test per ciascuna variabile sono memorizzati in una lista denominata `adf_results`.
+# 
+# Successivamente, i risultati del test ADF per ogni variabile sono stampati a schermo. Questo include statistiche cruciali come il test-statistic, il p-value e la conclusione sullo stato di stazionarietà della serie.
+# 
+# Infine, vengono aggiunti grafici di Autocorrelation Function (ACF) e Partial Autocorrelation Function (PACF) per ciascuna serie temporale numerica. Questi grafici aiutano a visualizzare le correlazioni tra i valori della serie temporale e le loro ritardate, fornendo ulteriori insights sull'autocorrelazione dei dati.
+# 
+# Nel caso in cui una serie non sia stazionaria (valore p > 0.05 nel test ADF), viene eseguita la differenziazione della serie temporale e vengono creati nuovi grafici ACF e PACF per la serie differenziata.
+# 
+# Questo processo fornisce una valutazione completa della stazionarietà delle serie temporali numeriche nel dataset, preparando i dati per l'applicazione di modelli statistici e analisi predittive.
+# ------------------------------------------------
+
+# Converti la colonna 'Data' nel formato di classe "Date"
+data$Data <- as.Date(data$Data, format = "%d.%m.%Y")
+
+# Identifica le colonne numeriche (escludendo 'Data' se presente)
+numeric_columns <- names(data)[sapply(data, is.numeric) & names(data) != "Data"]
+
+# Lista per memorizzare i risultati del test ADF
+adf_results <- list()
+
+# Itera attraverso le colonne numeriche e esegui il test ADF
+for (col in numeric_columns) {
+  adf_result <- adf.test(data[[col]], alternative = "stationary")
+  adf_results[[col]] <- adf_result
+}
+
+# Mostra i risultati del test ADF
+for (col in names(adf_results)) {
+  cat("---------------------------------------------------\n")
+  cat("Risultati del test ADF per:", col, "\n")
+  cat("---------------------------------------------------\n")
+  print(adf_results[[col]])  # Stampare il risultato del test ADF
+  cat("\n")
+}
+
+# Aggiunta dei grafici ACF e PACF
+# Imposta il layout dei grafici
+par(mfrow = c(3, 2))
+
+# Itera attraverso le colonne numeriche per creare i grafici ACF e PACF
+for (col in numeric_columns) {
+  ts_data <- ts(data[[col]])
+  
+  # Grafici ACF e PACF per la serie originale
+  acf(ts_data, main = paste("ACF di", col))
+  pacf(ts_data, main = paste("PACF di", col))
+  
+  # I grafici ACF mostrano le autocorrelazioni della serie temporale.
+  # Le barre verticali indicano il livello di correlazione tra le osservazioni attuali
+  # e quelle dei ritardi precedenti. Le linee tratteggiate rappresentano i limiti di
+  # confidenza per le autocorrelazioni. Le barre che superano queste linee indicano
+  # correlazioni statisticamente significative;
+  
+  # I grafici PACF mostrano le autocorrelazioni parziali della serie temporale,
+  # controllando gli effetti degli intervalli intermedi. Le barre verticali indicano
+  # il livello di correlazione parziale tra le osservazioni attuali e quelle dei ritardi
+  # precedenti, tenendo conto delle correlazioni indirette tramite gli intervalli intermedi.
+  # Le linee tratteggiate rappresentano i limiti di confidenza per le autocorrelazioni
+  # parziali. Le barre che superano queste linee indicano correlazioni parziali
+  # statisticamente significative.
+  
+  # Verifica se la serie non è stazionaria e differenzia
+  if (adf_results[[col]]$p.value > 0.05) {
+    diff_data <- diff(ts_data)
+    acf(diff_data, main = paste("ACF di", col, "differenziata"))
+    pacf(diff_data, main = paste("PACF di", col, "differenziata"))
+  }
+}
+
+# ------------------------------------------------
+# Commento sui Risultati del Test ADF
+# ------------------------------------------------
+# 
+# I risultati del test Augmented Dickey-Fuller (ADF) sono essenziali per valutare la stazionarietà delle serie temporali numeriche nel dataset.
+# 
+# Per la colonna 'Ultimo', il test ADF mostra un valore di Dickey-Fuller pari a -3.0742 con un p-value di 0.1236, suggerendo che non vi è sufficiente evidenza statistica per rigettare l'ipotesi nulla di non stazionarietà della serie.
+# 
+# Per la colonna 'Apertura', il test ADF indica un valore di Dickey-Fuller pari a -4.1328 con un p-value di 0.01, il che fornisce evidenza significativa per rigettare l'ipotesi nulla a favore dell'ipotesi alternativa di stazionarietà.
+# 
+# Per la colonna 'Massimo', il test ADF mostra un valore di Dickey-Fuller pari a -3.3879 con un p-value di 0.05552, suggerendo una tendenza verso la stazionarietà ma senza raggiungere significatività statistica.
+# 
+# Per la colonna 'Minimo', il test ADF riporta un valore di Dickey-Fuller pari a -3.7528 con un p-value di 0.02135, indicando che vi è evidenza statistica per rigettare l'ipotesi nulla di non stazionarietà della serie.
+# 
+# Per la colonna 'Vol.', il test ADF mostra un valore di Dickey-Fuller pari a -3.3333 con un p-value di 0.06493, suggerendo una mancanza di evidenza statistica significativa per rigettare l'ipotesi nulla di non stazionarietà della serie.
+# 
+# Infine, per la colonna 'Var. %', il test ADF indica un valore di Dickey-Fuller pari a -8.7381 con un p-value di 0.01, fornendo evidenza significativa per rigettare l'ipotesi nulla a favore dell'ipotesi alternativa di stazionarietà.
+# 
+# Questi risultati sono cruciali per determinare se le serie temporali analizzate possono essere considerate stazionarie o meno, influenzando direttamente l'adozione di modelli e tecniche di analisi dati appropriate.
+
+
+
+
+
+
+# "Analisi ARIMA per dati finanziari giornalieri di Tesla"
+
+# ------------------------------------------------
+# Questo script esegue l'analisi ARIMA per una serie storica di mercato per ciascuna variabile numerica specificata nel dataset.
+# 
+# Per ogni variabile numerica:
+# 1. Viene verificato se la serie è stazionaria utilizzando il test ADF (Augmented Dickey-Fuller).
+# 2. Se la serie è stazionaria (p-value < 0.05), viene creato un oggetto di serie temporale utilizzando i dati storici disponibili.
+# 3. Si utilizza la funzione auto.arima() della libreria forecast per identificare automaticamente il miglior modello ARIMA basato sulla serie temporale.
+# 4. I risultati del modello ARIMA, inclusi i coefficienti stimati, le statistiche di adattamento e i test diagnostici dei residui, vengono stampati per l'analisi dettagliata.
+# 5. Se la serie non è stazionaria, viene visualizzato un messaggio indicando l'impossibilità di applicare ARIMA su quella serie.
+# ------------------------------------------------
+
+
+# Lista per memorizzare i modelli ARIMA
+models_arima <- list()
+
+# Itera attraverso le colonne numeriche e applica ARIMA alle serie stazionarie
+for (col in numeric_columns) {
+  # Se la serie è stazionaria, puoi procedere con ARIMA
+  if (adf_results[[col]]$p.value < 0.05) {
+    # Crea una serie temporale con la colonna numerica e la colonna 'Data'
+    ts_data <- ts(data[[col]], start = min(data$Data), frequency = 12)  # Esempio: frequenza mensile (12)
+    
+    # Identifica il modello ARIMA ottimale
+    arima_model <- auto.arima(ts_data)
+    
+    # Salva il modello nella lista
+    models_arima[[col]] <- arima_model
+  } else {
+    cat("La serie", col, "non è stazionaria secondo il test ADF. Non è possibile applicare ARIMA.\n\n")
+  }
+}
+
+# Diagnosi dei modelli ARIMA
+for (col in names(models_arima)) {
+  cat("---------------------------------------------------\n")
+  cat("Modello ARIMA per:", col, "\n")
+  cat("---------------------------------------------------\n")
+  print(summary(models_arima[[col]]))  # Riepilogo del modello ARIMA
+  
+  # Mostra i parametri stimati per il modello ARIMA
+  cat("Parametri stimati (p, d, q):")
+  print(coef(models_arima[[col]]))
+  
+  cat("\n")
+  
+  # Diagnosi dei residui
+  checkresiduals(models_arima[[col]])
+}
+
+
+# --------------------------------------------------------
+# Analisi del modello ARIMA per la variabile 'Apertura'
+# --------------------------------------------------------
+
+# Il modello ARIMA identificato per la variabile 'Apertura' è ARIMA(0,1,1), indicando un modello di media mobile di ordine 1.
+# Questo suggerisce che le fluttuazioni nell'apertura dei prezzi sono principalmente influenzate dagli errori passati.
+
+# Il coefficiente stimato MA(1) = -0.9176, con un errore standard (s.e.) di 0.0142, indica che il primo termine di media
+# mobile ha un impatto significativo e negativo sulla serie storica.
+
+# L'AIC di 21141.16, AICc di 21141.18 e BIC di 21150.99 suggeriscono che il modello ha un buon equilibrio tra complessità
+# e capacità di adattamento.
+
+# Le misure di errore sul set di addestramento indicano un errore medio assoluto (MAE) di 6035.75 e un radice dell'errore
+# quadratico medio (RMSE) di 8732.134. Il modello ha un errore percentuale assoluto medio (MAPE) elevato di 586.2829,
+# indicando una precisione relativa inferiore.
+
+# Il test Ljung-Box con p-value di 0.0897 indica che i residui non mostrano autocorrelazione significativa.
+
+# --------------------------------------------------------
+# Analisi del modello ARIMA per la variabile 'Minimo'
+# --------------------------------------------------------
+
+# Il modello ARIMA identificato per la variabile 'Minimo' è ARIMA(0,1,1), con un coefficiente MA(1) = -0.9255 e un errore
+# standard (s.e.) di 0.0127. Questo suggerisce che la variabile 'Minimo' è influenzata da errori passati.
+
+# L'AIC di 21006.39, AICc di 21006.4 e BIC di 21016.22 indicano che il modello è adeguato e bilanciato in termini di
+# bontà di adattamento e complessità.
+
+# Le misure di errore sul set di addestramento indicano un errore medio assoluto (MAE) di 5533.696 e un radice dell'errore
+# quadratico medio (RMSE) di 8166.51. Il modello ha un errore percentuale assoluto medio (MAPE) di 426.0645, indicando una
+# precisione relativa moderata.
+
+# Il test Ljung-Box con p-value di 0.9208 indica che i residui non mostrano autocorrelazione significativa.
+
+# --------------------------------------------------------
+# Analisi del modello ARIMA per la variabile 'Var. %'
+# --------------------------------------------------------
+
+# Il modello ARIMA identificato per la variabile 'Var. %' è ARIMA(1,1,0)(1,0,0)[12], indicando un modello con un termine
+# autoregressivo di ordine 1 e una componente stagionale autoregressiva di ordine 1 con periodo 12.
+
+# I coefficienti stimati sono: AR(1) = -0.5227, SAR(1) = 0.0219, con errori standard (s.e.) bassi. Questo suggerisce che
+# le variazioni percentuali sono influenzate da valori passati con una componente stagionale annuale.
+
+# L'AIC di 6175.72, AICc di 6175.74 e BIC di 6190.46 indicano che il modello ha un adeguato bilanciamento tra complessità
+# e capacità di adattamento.
+
+# Le misure di errore sul set di addestramento indicano un errore medio assoluto (MAE) di 3.800215 e un radice dell'errore
+# quadratico medio (RMSE) di 5.174898. Il modello ha un errore percentuale assoluto medio (MAPE) elevato, indicando una
+# precisione relativa inferiore.
+
+# Il test Ljung-Box con p-value di 0.000 indica che i residui mostrano autocorrelazione significativa fino al lag 24,
+# suggerendo la possibile necessità di ulteriori miglioramenti del modello.
+
+
+
+
+
+# "Previsione dei valori futuri utilizzando modelli ARIMA"
+
+# ------------------------------------------------
+# Questo script esegue la previsione dei valori futuri utilizzando modelli ARIMA per tre variabili stazionarie: 'Apertura', 'Minimo', 'Var. %'.
+# 
+# Passaggi eseguiti:
+# 1. Viene definito il numero di giorni da prevedere (forecast_horizon = 30).
+# 2. Viene applicata la funzione forecast() sui modelli ARIMA precedentemente addestrati per 'Apertura', 'Minimo' e 'Var. %'.
+# 3. Le previsioni vengono visualizzate tramite grafici per fornire una rappresentazione visiva delle stime future.
+# 4. I risultati delle previsioni per ciascuna variabile sono stampati a schermo per l'analisi dettagliata dei valori previsti.
+# ------------------------------------------------
+
+# Definizione dei modelli ARIMA
+model_apertura <- auto.arima(data$Apertura)
+model_minimo <- auto.arima(data$Minimo)
+model_var_percent <- auto.arima(data$`Var. %`)
+
+# Numero di giorni da prevedere
+forecast_horizon <- 30
+
+# Previsione dei valori futuri per ciascuna variabile
+forecast_apertura <- forecast(model_apertura, h = forecast_horizon)
+forecast_minimo <- forecast(model_minimo, h = forecast_horizon)
+forecast_var_percent <- forecast(model_var_percent, h = forecast_horizon)
+
+# Visualizzazione delle previsioni per ciascuna variabile
+plot(forecast_apertura, main = "Previsioni del Modello ARIMA per Apertura")
+plot(forecast_minimo, main = "Previsioni del Modello ARIMA per Minimo")
+plot(forecast_var_percent, main = "Previsioni del Modello ARIMA per Var. %")
+
+# Mostrare le previsioni per ciascuna variabile
+print(forecast_apertura)
+print(forecast_minimo)
+print(forecast_var_percent)
+
+# Previsioni per l'apertura:
+# Il valore previsto per l'apertura è 3494.691 con un intervallo di confidenza dell'80% tra -7707.108 e 14696.49. Con un intervallo di confidenza del 95%, l'intervallo va da -13636.98 a 20626.36. Questo suggerisce una previsione per l'apertura con un ampio intervallo di confidenza, indicando una significativa variabilità potenziale.
+
+# Previsioni per il minimo:
+# Il valore previsto per il minimo è 3309.455 con un intervallo di confidenza dell'80% tra -7166.747 e 13785.66. Con un intervallo di confidenza del 95%, l'intervallo va da -12712.51 a 19331.42. Questo indica una previsione per il minimo giornaliero con un intervallo di incertezza relativamente ampio.
+
+# Previsioni per la variazione percentuale:
+# La variazione percentuale prevista è 2.550243% con un intervallo di confidenza dell'80% tra -3.686587% e 8.787074%. Con un intervallo di confidenza del 95%, l'intervallo va da -6.988165% a 12.08865%. Questo indica una previsione per la variazione percentuale con un intervallo di confidenza abbastanza ampio, suggerendo potenziali variazioni significative nel rendimento percentuale.
+
+
+#..............................................................
+
+
+# "Analisi della Stagionalità con Decomposizione STL per tutte le variabili"
+
+# ------------------------------------------------
+# Questo script esegue l'analisi della componente stagionale utilizzando la decomposizione STL (Seasonal and Trend decomposition using Loess) per tutte le variabili nel dataset.
+# 
+# Ogni variabile viene trattata separatamente come una serie temporale giornaliera con frequenza 365 (annuale).
+# La decomposizione STL evidenzia le componenti stagionali distintive con variazioni nel tempo. I grafici delle componenti stagionali mostrano le fluttuazioni attorno alla media stagionale, fornendo un'indicazione visiva della natura stagionale dei dati.
+# Vengono calcolate statistiche sintetiche come media e deviazione standard per la componente stagionale di ciascuna variabile, che sono utili per comprendere la variabilità e la distribuzione dei dati stagionali.
+# ------------------------------------------------
+
+# Lista delle variabili da considerare per l'analisi di stagionalità
+variabili <- c("Ultimo", "Apertura", "Massimo", "Minimo", "Vol.", "Var. %")
+
+# Loop attraverso ogni variabile per eseguire l'analisi di stagionalità
+for (var in variabili) {
+  
+  # Crea una serie temporale giornaliera per la variabile corrente
+  ts_data <- ts(data[[var]], start = min(data$Data), frequency = 365)
+  
+  # Analizza la stagionalità con decomposizione STL
+  stl_result <- stl(ts_data, s.window = "periodic")
+  
+  # Plot della decomposizione della serie temporale
+  plot(stl_result, main = paste("Decomposizione STL della Serie Temporale -", var))
+  
+  # Estrai la componente stagionale
+  seasonal_component <- stl_result$time.series[, "seasonal"]
+  
+  # Calcola statistiche di sintesi sulla componente stagionale
+  summary_seasonal <- summary(seasonal_component)
+  
+  # Grafico della componente stagionale per analisi visiva
+  plot(seasonal_component, type = "l", main = paste("Componente Stagionale -", var))
+  
+  # Calcola la media e la deviazione standard della componente stagionale
+  mean_seasonal <- mean(seasonal_component, na.rm = TRUE)
+  sd_seasonal <- sd(seasonal_component, na.rm = TRUE)
+  
+  # Stampare le statistiche calcolate
+  cat(paste("Statistiche della componente stagionale per", var, ":\n"))
+  print(summary_seasonal)
+  cat("\nMedia della componente stagionale:", mean_seasonal, "\n")
+  cat("Deviazione standard della componente stagionale:", sd_seasonal, "\n\n")
+}
+
+# ------------------------------------------------
+# Interpretazione delle statistiche della componente stagionale
+# ------------------------------------------------
+# 
+# Le statistiche della componente stagionale per ciascuna variabile forniscono informazioni cruciali
+# sulla natura e la variabilità delle fluttuazioni stagionali nei dati di mercato analizzati.
+# 
+# Per la variabile 'Ultimo', si osserva una distribuzione ampia con valori che vanno da -19451.27
+# a 7869.15. La media della componente stagionale è negativa (-15.02), indicando una tendenza al ribasso
+# nella componente stagionale nel periodo considerato, con una deviazione standard significativa di 4764.357.
+# 
+# Per 'Apertura', la componente stagionale mostra una distribuzione simile, sebbene la media sia prossima a 5,
+# suggerendo una leggera tendenza al rialzo. La deviazione standard (5482.399) evidenzia una maggiore
+# variabilità rispetto alla variabile 'Ultimo'.
+# 
+# 'Massimo' e 'Minimo' presentano distribuzioni simili con valori massimi e minimi estesi, indicativi di
+# significative fluttuazioni stagionali. Entrambe le variabili mostrano una media positiva (18.03 per 'Massimo'
+# e 22.47 per 'Minimo') con deviazioni standard di circa 5800, indicando una considerevole variabilità.
+# 
+# La variabile 'Vol.' mostra una distribuzione più compatta con valori compresi tra -48.969 e 235.902.
+# La media della componente stagionale (1.747) è positiva, indicando una tendenza al rialzo, con una deviazione
+# standard di 37.808, suggerendo una minore variabilità rispetto alle altre variabili.
+# 
+# Infine, per 'Var. %', si nota una componente stagionale con valori compresi tra -8.25338 e 9.39905. La media
+# (0.041) è vicina allo zero, indicando una componente stagionale con poca direzione sistematica nel periodo
+# considerato. La deviazione standard (2.370536) riflette la variabilità delle fluttuazioni stagionali.
+# 
+# Questi risultati sottolineano l'importanza di considerare le componenti stagionali nelle analisi di mercato,
+# poiché forniscono insights sulla volatilità e sulle tendenze stagionali che possono influenzare le strategie
+# di investimento e la gestione del rischio.
+# ------------------------------------------------
+
+
+
+# "Analisi SARIMA per dati finanziari giornalieri di Tesla
+
+# ------------------------------------------------
+# Questo script esegue l'analisi SARIMA per una serie storica di mercato per ciascuna variabile specificata nel dataset.
+# Le variabili considerate sono 'Ultimo', 'Apertura', 'Massimo', 'Minimo', 'Vol.', 'Var. %'.
+# 
+# Per ogni variabile:
+# 1. Viene creato un oggetto di serie temporale giornaliero con frequenza annuale (365 giorni) utilizzando i dati storici disponibili.
+# 2. Si utilizza la funzione auto.arima() della libreria forecast per identificare automaticamente il miglior modello SARIMA basato sulla serie temporale.
+# 3. Vengono generati e visualizzati i residui del modello SARIMA per valutare l'aderenza del modello ai dati.
+# 4. I risultati del modello SARIMA, inclusi i coefficienti stimati, le statistiche di adattamento e le previsioni future, vengono stampati per l'analisi dettagliata.
+# 5. Viene verificata la presenza di componenti stagionali nel modello identificato e viene fornito un messaggio di output di conseguenza.
+# ------------------------------------------------
+
+
+# Lista delle variabili da considerare per l'analisi SARIMA
+variabili <- c("Ultimo", "Apertura", "Massimo", "Minimo", "Vol.", "Var. %")
+
+# Imposta il layout dei grafici
+par(mfrow = c(3, 2))  # 3 righe per 2 colonne per gestire i plot
+
+# Loop attraverso ogni variabile per eseguire l'analisi SARIMA
+for (var in variabili) {
+  
+  # Crea una serie temporale giornaliera per la variabile corrente
+  ts_data <- ts(data[[var]], start = min(data$Data), frequency = 365)
+  
+  # Identificazione automatica del miglior modello SARIMA
+  sarima_model <- auto.arima(ts_data)
+  
+  # Plot dei residui del modello SARIMA
+  plot(residuals(sarima_model), main = paste("Residui del Modello SARIMA -", var))
+  
+  # Stampare i risultati del modello SARIMA
+  cat("---------------------------------------------------\n")
+  cat("Risultati del modello SARIMA per:", var, "\n")
+  cat("---------------------------------------------------\n")
+  print(sarima_model)
+  
+  # Verifica la presenza di stagionalità
+  if (sarima_model$arma[5] != 0) {
+    cat("\nLa serie", var, "presenta stagionalità.\n\n")
+  } else {
+    cat("\nLa serie", var, "non presenta stagionalità.\n\n")
+  }
+}
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Ultimo'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Ultimo' è ARIMA(1,1,2), indicando un modello autoregressivo
+# integrato di ordine 1 con due componenti di media mobile. Questo suggerisce che le fluttuazioni nel valore
+# 'Ultimo' sono influenzate dai valori passati e dagli errori passati. 
+
+# I coefficienti stimati sono: AR(1) = -0.6252, MA(1) = -0.3365, MA(2) = -0.5005, tutti significativamente diversi
+# da zero con errori standard (s.e.) relativamente bassi. Questo suggerisce che le previsioni basate su questo modello
+# potrebbero catturare efficacemente i pattern temporali nei dati.
+
+# L'AIC (Criterio di Informazione di Akaike) di 20771.54, AICc (AIC corretto) di 20771.58 e BIC (Criterio di Informazione
+# Bayesiano) di 20791.2 indicano che il modello ha un buon bilanciamento tra bontà di adattamento e complessità.
+
+# La presenza di stagionalità nella serie 'Ultimo' è confermata, poiché il termine ARIMA ha un componente stagionale non
+# nullo (arma[5] != 0).
+
+
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Apertura'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Apertura' è ARIMA(0,1,1), indicando un modello di media mobile di ordine 1.
+# Questo suggerisce che le fluttuazioni nell'apertura dei prezzi sono principalmente influenzate dagli errori passati.
+
+# Il coefficiente stimato MA(1) = -0.9176, con un errore standard (s.e.) di 0.0142, indica che il primo termine di media
+# mobile ha un impatto significativo e negativo sulla serie storica.
+
+# L'AIC di 21141.16, AICc di 21141.18 e BIC di 21150.99 suggeriscono che il modello ha un adeguato bilanciamento tra
+# complessità e capacità di adattamento.
+
+# La serie 'Apertura' presenta stagionalità, confermata dalla non nullità del termine ARIMA[5].
+
+
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Massimo'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Massimo' è ARIMA(0,1,1), con un coefficiente MA(1) = -0.929 e un errore
+# standard (s.e.) di 0.011. Questo suggerisce che la variabile 'Massimo' è fortemente influenzata da errori passati.
+
+# L'AIC di 21122.81, AICc di 21122.82 e BIC di 21132.64 indicano che il modello è sufficientemente adattato e non
+# eccessivamente complesso.
+
+# La presenza di stagionalità nella serie 'Massimo' è confermata dalla non nullità del termine ARIMA[5].
+
+
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Minimo'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Minimo' è ARIMA(0,1,1), con un coefficiente MA(1) = -0.9255 e un errore
+# standard (s.e.) di 0.0127. Questo suggerisce che la variabile 'Minimo' è influenzata da errori passati.
+
+# L'AIC di 21006.39, AICc di 21006.4 e BIC di 21016.22 indicano che il modello è adeguato e bilanciato in termini di
+# bontà di adattamento e complessità.
+
+# La presenza di stagionalità nella serie 'Minimo' è confermata dalla non nullità del termine ARIMA[5].
+
+
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Vol.'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Vol.' è ARIMA(4,1,2), indicando un modello autoregressivo di ordine 4
+# e una media mobile di ordine 2. Questo suggerisce che 'Vol.' è influenzato da valori passati e dagli errori passati
+# con un componente stagionale.
+
+# I coefficienti stimati sono: AR(1) = -0.0054, AR(2) = 0.2531, AR(3) = 0.0714, AR(4) = -0.0952, MA(1) = -0.3898, MA(2) = -0.4964.
+# Gli errori standard (s.e.) associati indicano una buona stima per ciascun coefficiente.
+
+# L'AIC di 10641.24, AICc di 10641.36 e BIC di 10675.65 suggeriscono che il modello ha un buon equilibrio tra complessità
+# e capacità di adattamento.
+
+# La presenza di stagionalità nella serie 'Vol.' è confermata dalla non nullità del termine ARIMA[5].
+
+
+
+# --------------------------------------------------------
+# Analisi del modello SARIMA per la variabile 'Var. %'
+# --------------------------------------------------------
+
+# Il modello SARIMA identificato per la variabile 'Var. %' è ARIMA(2,1,0), indicando un modello autoregressivo di ordine 2.
+# Questo suggerisce che le variazioni percentuali sono influenzate da valori passati.
+
+# I coefficienti stimati sono: AR(1) = -0.7030, AR(2) = -0.3447, entrambi con errori standard (s.e.) bassi.
+
+# L'AIC di 6049.27, AICc di 6049.29 e BIC di 6064.01 indicano che il modello è adeguato per catturare le variazioni nei dati.
+
+# La presenza di stagionalità nella serie 'Var. %' è confermata dalla non nullità del termine ARIMA[5].
+
+
+
+
+# -------------------------------------------------------------------
+
+## # Conclusioni
+
+# Questo studio ha fornito un'analisi dettagliata dei dati giornalieri relativi al titolo Tesla (TSLA) dal gennaio 2020 al gennaio 2024, esplorando diverse caratteristiche chiave delle serie temporali finanziarie. Di seguito sono riassunti i principali risultati e le osservazioni emerse:
+
+
+## Analisi Esplorativa dei Dati
+
+# L'analisi esplorativa ha rivelato che i prezzi di chiusura giornalieri di TSLA mostrano una variazione significativa nel periodo considerato. Durante il 2020 e il 2021, sono state osservate fluttuazioni notevoli, probabilmente influenzate da eventi macroeconomici e annunci aziendali significativi. Nel 2022 e nel 2023, i prezzi sembrano aver subito una maggiore stabilizzazione, con meno picchi e cali estremi rispetto agli anni precedenti.
+
+
+## Stagionalità e Stazionarietà
+
+# L'analisi della stagionalità attraverso la decomposizione STL ha evidenziato una chiara componente stagionale nei dati, soprattutto per quanto riguarda il volume delle transazioni e la variazione percentuale. Le fluttuazioni stagionali hanno mostrato un pattern regolare, che potrebbe essere collegato a periodi di alta attività commerciale nel settore automobilistico o a eventi specifici nel mercato azionario.
+
+## Modellazione con ARIMA e SARIMA
+
+# L'applicazione dei modelli ARIMA e SARIMA ha fornito previsioni ragionevoli per le serie storiche di TSLA. I modelli sono stati in grado di catturare efficacemente le tendenze a lungo termine, nonché le variazioni stagionali nei dati. In particolare, il modello SARIMA ha dimostrato di essere adatto per gestire le componenti stagionali complesse presenti nei dati giornalieri del prezzo delle azioni.
+
+
+## Implicazioni per gli Investitori
+
+# Basandosi sui risultati dell'analisi, gli investitori possono trarre alcune considerazioni importanti per la gestione del rischio e la pianificazione degli investimenti futuri. La comprensione delle tendenze storiche e delle fluttuazioni stagionali può fornire una base solida per prendere decisioni informate, ad esempio riguardo il momento dell'acquisto o della vendita di azioni Tesla. Inoltre, l'utilizzo dei modelli ARIMA e SARIMA può migliorare la capacità di previsione e l'efficacia delle strategie di trading.
+
+# In sintesi, questo studio ha contribuito a illuminare le dinamiche complesse dei dati storici di Tesla (TSLA), offrendo un quadro dettagliato delle tendenze e delle caratteristiche chiave delle serie temporali finanziarie nel periodo analizzato.
+```
