@@ -1,0 +1,605 @@
+---
+title: "Verifica Tree Based Models"
+author: "Guarino Renata"
+date: "2024-06-01"
+output: word_document
+---
+
+# Analisi Comparativa dei Modelli Basati su Alberi per la Previsione del Cancro al Seno
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+# -----------------------------------------------
+# Il cancro al seno è una delle principali cause di mortalità tra le donne in tutto il mondo. Comprendere i fattori che influenzano la presenza o l'assenza di questa malattia è cruciale per lo sviluppo di strategie di prevenzione e trattamento efficaci. 
+# 
+# Nel seguente studio, verrà esaminato un dataset contenente informazioni cliniche e biologiche su pazienti con e senza cancro al seno. Attraverso l'analisi dei dati, sarà esplorata l'importanza di variabili come età, BMI, livelli di glucosio, insulina e altri parametri metabolici nel processo decisionale dei modelli. 
+# 
+# 
+# Gli strumenti utilizzati includono gli alberi di classificazione (CART) e le random forest.In particolare, sarà valutata la capacità predittiva dei modelli, saranno identificate le variabili più influenti e sarà analizzata la loro relazione con la presenza del cancro al seno.
+# L'obiettivo di questo studio è fornire una migliore comprensione dei fattori che possono contribuire allo sviluppo del cancro al seno e fornire informazioni utili per la prevenzione e il trattamento della malattia.
+
+# -----------------------------------------------
+
+# Carica pacchetti necessari
+library(readr)           # Per la lettura dei dati
+library(dplyr)           # Per la manipolazione dei dati
+library(caTools)         # Per la suddivisione dei dati
+library(rpart)           # Per la costruzione di alberi di classificazione
+library(rpart.plot)      # Per migliorare la visualizzazione degli alberi di classificazione
+library(pROC)            # Per la creazione di curve ROC
+library(caret)           # Per la validazione incrociata e la valutazione dei modelli
+library(ROSE)            # Per il bilanciamento dei dati
+library(tree)            # Per la costruzione di alberi di classificazione
+library(randomForest)    # Per la costruzione di modelli di random forest
+library(ggplot2)         # Per la creazione di grafici
+library(partykit)        # Per la creazione di altri grafici
+
+
+# Visualizza il dataset
+# Leggi il file CSV e assegnalo alla variabile 
+BK <- read_csv("dataR2.csv")
+
+head(BK) # Visualizza le prime righe del dataset
+str(BK) # Visualizza la struttura del dataframe 
+tail(BK) # Visualizza le ultime sei righe del dataset
+
+# Numero di livelli nella variabile "Classification"
+num_levels <- length(unique(BK$Classification))
+print(num_levels)
+
+# Visualizza i valori univoci della variabile "Classification"
+unique_values <- unique(BK$Classification)
+print(unique_values)
+print(BK$Classification)
+
+# Ottieni il numero di variabili
+num_variables <- ncol(BK)
+cat("Numero di variabili:", num_variables, "\n")
+
+# Ottieni i tipi di variabili
+variable_types <- sapply(BK, class)
+print(variable_types)
+
+
+# Il Datase è costitutito da 10 variabili numeriche:
+
+# Age: età;
+# BMI: indice di massa corporea;
+# Glucose: livelli di glucosio nel sangue;
+# Insulin: quantità di insulina somministrata;
+# Homa (Homeostasis Model Assessment): metodo di calcolo dell'insulino-resistenza (HOMA-IR (Insulin Resistance) = [Insulina a digiuno (μU/mL) * Glicemia a digiuno (mmol/L)] / 22.5);
+# Leptin: ormone prodotto principalmente dalle cellule adipose (aumenta il bilancio energetico inibendo la fame);
+# Adiponectin: proteina prodotta dalle cellule adipose che modula una serie di processi metabolici, tra cui la regolazione del glucosio e la degradazione degli acidi grassi;
+# Resistin: ormone prodotto dalle cellule adipose e dai macrofagi (può indurre ad una insulino-resistenza)
+# MCP.1 (Monocyte Chemoattractant Protein-1): svolge un ruolo cruciale nel reclutamento e nell'attivazione dei monociti, dei macrofagi e delle cellule T al sito di infiammazione
+# Classification: 1 - Sotto controllo medico, 2 - Paziente
+
+# Link dataset: https://archive.ics.uci.edu/dataset/451/breast+cancer+coimbra
+
+
+# Missing Data
+
+# Controlla se ci sono valori mancanti nel dataframe "Diabetes"
+missing_values <- colSums(is.na(BK))
+
+# Visualizza il numero di valori mancanti per ogni colonna
+print(missing_values)
+# Non ci sono valori mancanti sul dataset
+
+
+
+# -----------------------------------------------
+# Calcolo delle percentuali di "Yes" e "No"
+# -----------------------------------------------
+#
+# Le percentuali di "Yes" e "No" nella variabile target vengono calcolate per valutare l'equilibrio del dataset dopo il bilanciamento delle classi.
+#
+# Questo passaggio è importante per verificare se l'oversampling ha prodotto una distribuzione bilanciata delle classi nel dataset.
+#
+# Le percentuali vengono calcolate dividendo il numero di osservazioni corrispondenti alla classe "Yes" o "No" per il numero totale di osservazioni nel dataset bilanciato e moltiplicando il risultato per 100.
+#
+# Le percentuali calcolate vengono quindi stampate utilizzando la funzione `cat` per fornire un resoconto chiaro della distribuzione delle classi nel dataset.
+#
+# -----------------------------------------------
+
+# Calcola le percentuali di "Yes" e "No" nella variabile target
+percent_no <- mean(BK$Classification == "1") * 100
+percent_yes <- mean(BK$Classification == "2") * 100
+
+# Stampare le percentuali
+cat("Percentuale di '1':", percent_yes, "%\n")
+cat("Percentuale di '2':", percent_no, "%\n")
+
+
+
+# Trasformazione della variabile target in factor
+
+# Etichetta i valori "1" e "2" come "No" e "Yes"
+BK$Classification <- factor(BK$Classification, levels = c("1", "2"), labels = c("No", "Yes"))
+
+# Verifica della trasformazione
+str(BK$Classification)
+
+# Verifica della distribuzione delle classi dopo la trasformazione
+table(BK$Classification)
+
+
+
+# ---------------------- PROCESSING ------------------------------------
+# Imposta il seme del generatore di numeri casuali per renderlo riproducibile
+set.seed(123)
+
+# Suddivide il dataset in training set e testing set
+train_index <- createDataPartition(BK$Classification, p = 0.8, list = FALSE, times = 1)
+train <- BK[train_index, ]
+test <- BK[-train_index, ]
+
+# albero di prova
+Default_Tree <- rpart(Classification ~ ., data = train, method = "class")
+rpart.plot(Default_Tree)
+
+
+
+######## CART ##############
+
+# Creo il primo albero con rpart
+
+# Crea un albero con il dataset training inserendo cp = 0.0001
+set.seed(123)
+First_Tree <- rpart(Classification ~ ., data = train, method = "class", cp = 0.0001)
+rpart.plot(First_Tree)
+# Analizzando il 100% delle osservazioni, il primo albero evidenzia che livelli elevati delle prime tre variabili significative - Glucose, Age, Resistin - influenzano l'incidenza della malattia nei pazienti affetti da carcinoma mammario.
+
+summary(First_Tree)
+printcp(First_Tree)
+plotcp(First_Tree)
+
+# Altro plot per la classificazione del primo albero
+plot(as.party(First_Tree), cex=0.2)
+# È evidente sin da subito che la risposta è influenzata da livelli elevati di Glucosio, seguiti da una fascia d'età più giovane.
+
+# Visualizza le variabili importanti
+First_Tree$variable.importance
+
+# Estrai l'importanza delle variabili per il primo albero
+importance_values_first <- First_Tree$variable.importance
+names_first_tree <- names(importance_values_first)
+var_importance_df_first <- data.frame(Variable = names_first_tree, Importance = importance_values_first)
+
+# Grafico dell'importanza delle variabili per il primo albero
+ggplot(var_importance_df_first, aes(x = reorder(Variable, Importance), y = Importance, fill = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  xlab("Variabile") +
+  ylab("Importanza") +
+  ggtitle("Importanza delle variabili - Primo albero") +
+  scale_fill_gradient(low = "lightcoral", high = "darkred")
+# Glucosio, età e livelli di HOMA emergono come le variabili più significative.
+
+# Prevedi le classi utilizzando il primo albero
+Predicted_First_Tree <- predict(First_Tree, newdata = test, type = 'class')
+test$Predicted_First_Tree <- Predicted_First_Tree
+
+# Valuta sul test set
+table(Predicted_First_Tree, test$Classification) 
+
+# Calcola il tasso di errore di classificazione sul test set
+missclassification_error_rate <- mean(Predicted_First_Tree != test$Classification)
+print(missclassification_error_rate)
+
+# Crea una matrice di confusione anche attraverso il quale, si può visualizzare l'accuratezza del modello sul test set.
+confusionMatrix(Predicted_First_Tree, test$Classification)
+
+# L'albero è stato costruito utilizzando il set di dati di addestramento, con un parametro di complessità (cp) pari a 0.0001. La complessità controlla il numero di nodi e la profondità dell'albero. Una complessità più bassa può portare a un albero più complesso, mentre una complessità più alta può portare a un albero più semplice.
+
+# Variabili importanti:
+# Le variabili Glucose, Age, HOMA sono state identificate come le più importanti per la classificazione. Questo significa che sono le variabili che meglio distinguono le classi di output nel dataset.
+
+# Tabella di confusione:
+# La tabella di confusione mostra che su 22 casi, il modello ha correttamente classificato 17 casi. Questo si traduce in un'accuratezza del 77%, indicando che il modello è in grado di predire correttamente la classe di appartenenza nella maggior parte dei casi.
+
+# Accuratezza:
+# L'accuratezza del modello indica la percentuale di casi correttamente classificati rispetto al totale dei casi. Un'accuratezza del 77% indica che il modello ha predetto correttamente la classe di appartenenza nel 77% dei casi.
+
+# Tasso di errore di classificazione:
+# Il tasso di errore di classificazione rappresenta la percentuale di casi predetti in modo errato rispetto al totale dei casi. Un tasso di errore del 22,72% indica che il modello ha predetto erroneamente la classe di appartenenza nel 22,72% dei casi.
+
+# Valore Kappa:
+# Il valore Kappa è una misura della concordanza tra le predizioni del modello e i veri valori. Un valore Kappa del 53% indica una buona concordanza tra le predizioni del modello e i veri valori.
+
+# Sensibilità e Specificità:
+# La sensibilità rappresenta la capacità del modello di identificare correttamente i veri positivi, mentre la specificità rappresenta la capacità del modello di identificare correttamente i veri negativi. Una sensibilità del 60% indica che il modello identifica correttamente i pazienti affetti dalla malattia nel 60% dei casi, mentre una specificità del 92% indica che il modello identifica correttamente i pazienti non affetti dalla malattia nel 92% dei casi.
+
+# Complessivamente, i risultati indicano che l'albero di classificazione ha una buona capacità di predire la classe di appartenenza.
+
+
+
+
+# Secondo alberto con rpart
+
+"Poiché nel primo albero ho utilizzato un valore di cp pari a 0.01, ho deciso di esplorare ulteriormente la complessità dell'albero riducendo il valore di cp a 0 nel secondo albero. 
+In questo modo, sto esaminando un modello con una maggiore complessità, consentendo all'albero di adattarsi meglio ai dati di addestramento senza la necessità di potatura. Questa scelta mi permette di esplorare diverse configurazioni dell'albero e valutare se un modello più complesso possa portare a una migliore capacità predittiva senza dover ricorrere alla potatura."
+
+# Creo il secondo albero con cp = 0
+set.seed(123)
+Second_Tree <- rpart(Classification ~ ., data = train, method = "class", cp = 0)
+rpart.plot(Second_Tree)
+# Confermando quanto discusso in precedenza, il secondo grafico sottolinea l'importanza del glucosio nel distinguere tra pazienti affetti dalla condizione e soggetti sotto controllo medico
+
+summary(Second_Tree)
+printcp(Second_Tree)
+plotcp(Second_Tree)
+
+# Altro plot per la classificazione del secondo albero
+plot(as.party(Second_Tree), cex=0.2)
+
+# Visualizza le variabili importanti
+Second_Tree$variable.importance
+
+# Estrai l'importanza delle variabili per il secondo albero
+importance_values_second <- Second_Tree$variable.importance
+names_second_tree <- names(importance_values_second)
+var_importance_df_second <- data.frame(Variable = names_second_tree, Importance = importance_values_second)
+
+# Grafico dell'importanza delle variabili per il secondo albero
+ggplot(var_importance_df_second, aes(x = reorder(Variable, Importance), y = Importance, fill = Importance)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  xlab("Variabile") +
+  ylab("Importanza") +
+  ggtitle("Importanza delle variabili - Secondo albero") +
+  scale_fill_gradient(low = "lightgreen", high = "darkgreen")
+
+Predicted_Second_Tree <- predict(Second_Tree, newdata = test, type = 'class')
+test$Predicted_Second_Tree <- Predicted_Second_Tree
+
+# Valutazione sul test set
+table(Predicted_Second_Tree, test$Classification) 
+
+# Calcola il tasso di errore di classificazione sul test set
+missclassification_error_rate_second <- mean(Predicted_Second_Tree != test$Classification)
+print(missclassification_error_rate_second)
+
+# Crea una matrice di confusione anche attraverso il quale, si può visualizzare l'accuratezza del modello sul test set.
+confusionMatrix(Predicted_Second_Tree, test$Classification)
+
+# L'albero è stato costruito utilizzando il set di dati di addestramento, con un parametro di complessità (cp) pari a 0.000. 
+
+# Variabili importanti:
+# Le variabili Glucose, Age, HOMA e Insulin sono state identificate come le più importanti per la classificazione. Questo significa che sono le variabili che meglio distinguono le classi di output nel dataset.
+
+# Tabella di confusione:
+# La tabella di confusione mostra che su 22 casi, il modello ha correttamente classificato 17 casi. Questo si traduce in un'accuratezza del 77%, indicando che il modello è in grado di predire correttamente la classe di appartenenza nella maggior parte dei casi.
+
+# Accuratezza:
+# L'accuratezza del modello indica la percentuale di casi correttamente classificati rispetto al totale dei casi. Un'accuratezza del 77% indica che il modello ha predetto correttamente la classe di appartenenza nel 77% dei casi.
+
+# Tasso di errore di classificazione:
+# Il tasso di errore di classificazione rappresenta la percentuale di casi predetti in modo errato rispetto al totale dei casi. Un tasso di errore del 22,72% indica che il modello ha predetto erroneamente la classe di appartenenza nel 22,72% dei casi.
+
+# Valore Kappa:
+# Il valore Kappa è una misura della concordanza tra le predizioni del modello e i veri valori. Un valore Kappa del 53% indica una buona concordanza tra le predizioni del modello e i veri valori.
+
+# Sensibilità e Specificità:
+# La sensibilità rappresenta la capacità del modello di identificare correttamente i veri positivi, mentre la specificità rappresenta la capacità del modello di identificare correttamente i veri negativi. Una sensibilità del 60% indica che il modello identifica correttamente i pazienti affetti dalla malattia nel 60% dei casi, mentre una specificità del 92% indica che il modello identifica correttamente i pazienti non affetti dalla malattia nel 92% dei casi.
+
+# Complessivamente, i risultati indicano che l'albero di classificazione ha una buona capacità di predire la classe di appartenenza.
+
+
+
+
+# Primo Albero con "tree"
+
+"Dopo aver costruito i primi due alberi di classificazione utilizzando l'algoritmo rpart, ho deciso di esplorare un'implementazione diversa per il terzo albero. Ho optato per l'utilizzo della funzione tree al fine di valutare un approccio più semplice e diretto nella costruzione dell'albero di decisione. L'utilizzo di tree mi ha permesso di esplorare una strategia di splitting più elementare rispetto a rpart, che potrebbe portare a una struttura dell'albero più interpretabile e facile da comprendere. Inoltre, ho voluto confrontare le prestazioni del modello generato da tree con quelli ottenuti utilizzando rpart, al fine di valutare quale approccio sia più adatto al mio problema di classificazione."
+
+# Imposta il seme del generatore di numeri casuali per renderlo riproducibile
+set.seed(123)
+
+# Addestra il terzo albero
+Third_Tree <- tree(Classification ~ ., data = train)
+
+# Visualizza il terzo albero
+plot(Third_Tree)
+text(Third_Tree)
+# Si presente come un albero completo, che include tutti i predittori e sembra difficile da interpretare.
+# Inoltre, è facile vedere che un albero completamente cresciuto si adatterà eccessivamente ai dati di addestramento e potrebbe portare a scarse prestazioni del set di test.
+# Una strategia per limitare questo overfitting è quella di ridurre l'albero risultante in un albero più semplice con meno suddivisioni e una migliore interpretazione 
+summary(Third_Tree)
+
+# Predizione e valutazione del modello
+Predicted_Third_Tree <- predict(Third_Tree, newdata = test, type = 'class')
+test$Predicted_Third_Tree <- Predicted_Third_Tree
+
+# Valutazione sul test set
+table(Predicted_Third_Tree, test$Classification)
+
+# Calcola il tasso di errore di classificazione
+missclassification_error_rate <- mean(Predicted_Third_Tree != test$Classification)
+print(missclassification_error_rate)
+
+# Matrice di confusione
+conf_matrix <- confusionMatrix(factor(Predicted_Third_Tree, levels = levels(test$Classification)), test$Classification)
+print(conf_matrix)
+
+# L'albero è stato costruito utilizzando il set di dati di addestramento. Sono state utilizzate le variabili Glucose, BMI, Resistin, Age e Insulin per la costruzione dell'albero.
+#
+# La tabella di confusione mostra che su 22 casi, il modello ha correttamente classificato 15 casi. Questo si traduce in un'accuratezza del 68%, indicando che il modello è in grado di predire correttamente la classe di appartenenza nella maggior parte dei casi.
+#
+# L'accuratezza del modello indica la percentuale di casi correttamente classificati rispetto al totale dei casi. Un'accuratezza del 68% indica che il modello ha predetto correttamente la classe di appartenenza nel 68% dei casi.
+#
+# Il tasso di errore di classificazione rappresenta la percentuale di casi predetti in modo errato rispetto al totale dei casi. Un tasso di errore del 32% indica che il modello ha predetto erroneamente la classe di appartenenza nel 32% dei casi.
+#
+# Il valore Kappa è una misura della concordanza tra le predizioni del modello e i veri valori. Un valore Kappa del 34% indica una sufficiente concordanza tra le predizioni del modello e i veri valori.
+#
+# La sensibilità rappresenta la capacità del modello di identificare correttamente i veri positivi, mentre la specificità rappresenta la capacità del modello di identificare correttamente i veri negativi. Una sensibilità del 50% indica che il modello identifica correttamente i pazienti affetti dalla malattia nel 50% dei casi, mentre una specificità dell'83.33% indica che il modello identifica correttamente i pazienti non affetti dalla malattia nell'83% dei casi.
+#
+# Complessivamente, i risultati indicano che l'albero di classificazione ha una buona capacità di predire la classe di appartenenza.
+
+
+
+# Secondo Albero con Tree
+
+# Esegui la validazione incrociata per trovare il miglior valore di complessità
+set.seed(123)
+cv_Third_Tree <- cv.tree(Third_Tree, FUN = prune.misclass)
+print(cv_Third_Tree)
+
+# Pota l'albero utilizzando il valore ottimale trovato dalla validazione incrociata
+pruned_Third_Tree <- prune.misclass(Third_Tree, best = 7)  # valore ottimale trovato dalla validazione incrociata
+plot(pruned_Third_Tree)
+text(pruned_Third_Tree, pretty = 5)
+
+# Plots dei risultati della validazione incrociata
+par(mfrow=c(1,2))
+plot(cv_Third_Tree$size, cv_Third_Tree$dev, type = "b", main = "Devianza - dimensione dell'albero")
+plot(cv_Third_Tree$k, cv_Third_Tree$dev, type = "b", main = "Devianza - K")
+
+# Predizione e valutazione del modello potato
+Predicted_Pruned_Third_Tree <- predict(pruned_Third_Tree, newdata = test, type = 'class')
+test$Predicted_Pruned_Third_Tree <- Predicted_Pruned_Third_Tree
+
+# Valutazione sul test set
+table(Predicted_Pruned_Third_Tree, test$Classification)
+
+# Calcola il tasso di errore di classificazione per l'albero potato
+missclassification_error_rate_pruned <- mean(Predicted_Pruned_Third_Tree != test$Classification)
+print(missclassification_error_rate_pruned)
+
+# Matrice di confusione per l'albero potato
+conf_matrix_pruned <- confusionMatrix(factor(Predicted_Pruned_Third_Tree, levels = levels(test$Classification)), test$Classification)
+print(conf_matrix_pruned)
+
+# L'albero è stato potato utilizzando il valore ottimale trovato dalla validazione incrociata.
+# La devianza è stata ridotta da 44 a 29 dopo la potatura, indicando un miglioramento delle prestazioni del modello.
+# La devianza è una misura dell'errore del modello, e una devianza più bassa indica una migliore adattabilità del modello ai dati.
+# # Il valore minimo della devianza è 29, associato alla dimensione minima dell'albero, che è 7.
+#
+# La matrice di confusione mostra i risultati della classificazione del modello sul set di test.
+# Su un totale di 22 casi, l'albero potato ha correttamente classificato 17 casi.
+#
+# L'accuratezza del modello è del 77.27%, indicando che il modello è in grado di predire correttamente la classe di appartenenza nella maggior parte dei casi.
+# Il tasso di errore di classificazione per l'albero potato è del 22.73%.
+#
+# La sensibilità del modello è del 70%, indicando la capacità del modello di identificare correttamente i veri positivi.
+# La specificità del modello è dell'83.33%, indicando la capacità del modello di identificare correttamente i veri negativi.
+#
+# Complessivamente, i risultati indicano che l'albero potato ha prestazioni migliori rispetto all'albero non potato, con un'accuratezza e una devianza migliorate.
+
+
+
+
+# Random Forest
+
+
+# Calcola la radice quadrata del numero di predittori 
+mtry_value <- floor(sqrt(ncol(train)))
+
+# Addestra il modello di Random Forest specificando mtry come la radice quadrata di p
+set.seed(123) # Per la riproducibilità
+rf_model <- randomForest(Classification ~ ., data = train, mtry = mtry_value)
+
+# Visualizza i dettagli del modello
+print(rf_model)
+
+
+# Visualizza l'importanza delle variabili
+importance_values <- importance(rf_model)
+print(importance_values)
+
+# Plot dell'importanza delle variabili 
+varImpPlot(rf_model, main="Variable importance", pch = 19, col = "darkblue")
+# Il grafico mostra chiaramente l'importanza delle variabili in termini di riduzione dell'impurità (Gini), con "Glucose" e "Age" come le variabili più influenti
+
+# Visualizza l'errore OOB (Out-of-Bag) rispetto al numero di alberi
+plot(rf_model, main = "OOB Error Rate vs Number of Trees")
+# grafico che mostra come l'errore OOB diminuisca all'aumentare del numero di alberi nella foresta casuale
+
+# Predizione sull'insieme di test
+predicted_rf <- predict(rf_model, newdata = test)
+predicted_rf
+
+# Valutazione sul test set
+table(predicted_rf, test$Classification)
+
+# Calcola l'errore di classificazione sul test set
+error_rate <- mean(predicted_rf != test$Classification)
+print(error_rate)
+
+# Matrice di confusione
+conf_matrix <- confusionMatrix(predicted_rf, test$Classification)
+print(conf_matrix)
+
+# La foresta casuale è stata costruita utilizzando il set di dati di addestramento con 500 alberi e 3 variabili selezionate a ogni split.
+#
+# La tabella di confusione mostra che su 22 casi, il modello ha correttamente classificato 19 casi. Questo si traduce in un'accuratezza dell'80%, indicando che il modello è in grado di predire correttamente la classe di appartenenza nella maggior parte dei casi.
+#
+# L'accuratezza del modello indica la percentuale di casi correttamente classificati rispetto al totale dei casi. Un'accuratezza dell'86% indica che il modello ha predetto correttamente la classe di appartenenza nell'86% dei casi.
+#
+# Il tasso di errore di classificazione rappresenta la percentuale di casi predetti in modo errato rispetto al totale dei casi. Un tasso di errore del 13% indica che il modello ha predetto erroneamente la classe di appartenenza nel 13% dei casi.
+#
+# Il valore Kappa è una misura della concordanza tra le predizioni del modello e i veri valori. Un valore Kappa del 71% indica una più che buona concordanza tra le predizioni del modello e i veri valori.
+#
+# La sensibilità rappresenta la capacità del modello di identificare correttamente i veri positivi, mentre la specificità rappresenta la capacità del modello di identificare correttamente i veri negativi. Una sensibilità dell'70% indica che il modello identifica correttamente i pazienti affetti dalla malattia nell'70% dei casi, mentre una specificità del 100% indica che il modello identifica correttamente i pazienti non affetti dalla malattia in tutti i casi.
+#
+# Complessivamente, i risultati indicano che la foresta casuale ha una buona capacità di predire la classe di appartenenza.
+
+
+
+
+########## Cross Validation per i 4 Modelli #########
+
+# I albero
+
+# Fissa il seme per la riproducibilità
+set.seed(123)
+
+# Definisci il controllo per la cross-validation
+ctrl <- trainControl(method = "cv", number = 10) # 10-fold cross-validation
+
+# Addestra il primo albero con cross-validation
+cv_model_first_tree <- train(Classification ~ ., data = train, method = "rpart", trControl = ctrl, tuneLength = 10)
+
+# Visualizza i risultati del primo albero
+print(cv_model_first_tree)
+
+# Visualizza il plot con i risultati della cross-validation per il primo albero
+plot(cv_model_first_tree)
+
+# Predizioni del primo albero sul test set
+predicted_first_tree <- predict(cv_model_first_tree, newdata = test)
+
+# Valuta le predizioni del primo albero sul test set
+confusionMatrix(predicted_first_tree, test$Classification)
+
+# È stato utilizzato il metodo di cross-validation a 10 fold per valutare il modello.
+#
+# Il modello di albero decisionale è stato addestrato utilizzando il metodo "rpart" sul dataset di addestramento. Sono state testate diverse configurazioni del parametro di complessità (cp) durante la cross-validation.
+#
+# Il modello è stato valutato su 74 campioni, con 9 variabili predittive e 2 classi target ("No", "Yes"). 
+#
+# I risultati della cross-validation mostrano che l'accuratezza più alta è stata ottenuta con un valore di cp = 0, con un'accuratezza di circa 67% e un valore di Kappa di circa 0.34.
+#
+# La matrice di confusione per il test set indica un'accuratezza del 77%, con una sensibilità del 60% e una specificità del 91%. Il valore Kappa è di 0.53, indicando una buona concordanza tra le predizioni del modello e i veri valori.
+#
+# Complessivamente, il modello CART con cross-validation a 10 fold ha fornito una buona accuratezza.
+
+
+
+# II albero
+
+# Fissa il seme per la riproducibilità
+set.seed(123)
+
+# Addestra il secondo albero con cross-validation
+cv_model_second_tree <- train(Classification ~ ., data = train, method = "rpart", trControl = ctrl, tuneLength = 10)
+
+# Visualizza i risultati del secondo albero
+print(cv_model_second_tree)
+
+# Visualizza il plot con i risultati della cross-validation per il secondo albero
+plot(cv_model_second_tree)
+
+# Predizioni del secondo albero sul test set
+predicted_second_tree <- predict(cv_model_second_tree, newdata = test)
+
+# Valuta le predizioni del secondo albero sul test set
+confusionMatrix(predicted_second_tree, test$Classification)
+
+# È stato utilizzato il metodo di cross-validation a 10 fold per valutare il modello.
+
+# Il modello di albero decisionale è stato addestrato utilizzando il metodo "CART" sul dataset di addestramento. Durante la cross-validation sono state testate diverse configurazioni del parametro di complessità (cp).
+#
+# Il modello è stato valutato su 84 campioni, con 9 variabili predittive e 2 classi target ("Yes", "No"). 
+#
+# Dai risultati della cross-validation emerge che il valore di cp ottimale è 0, con un'accuratezza di circa 67% e un valore di Kappa di circa 0.34
+#
+# La matrice di confusione per il secondo albero indica un'accuratezza del 77%, con una sensibilità del 60% e una specificità del 91%. Il valore Kappa è di 0.53, indicando una buona concordanza tra le predizioni del modello e i veri valori.
+#
+# Complessivamente, il modello CART ha una capacità discreta di predire la classe di appartenenza.
+
+
+
+# III albero
+
+# Fissa il seme per la riproducibilità
+set.seed(123)
+
+# Addestra il terzo albero con cross-validation
+cv_model_third_tree <- train(Classification ~ ., data = train, method = "rpart", trControl = ctrl, tuneLength = 10)
+
+# Visualizza i risultati del terzo albero
+print(cv_model_third_tree)
+
+# Visualizza il plot con i risultati della cross-validation per il terzo albero
+plot(cv_model_third_tree)
+
+# Predizioni del terzo albero sul test set
+predicted_third_tree <- predict(cv_model_third_tree, newdata = test)
+
+# Valutazione delle predizioni del terzo albero sul test set
+confusionMatrix(predicted_third_tree, test$Classification)
+
+# È stato utilizzato il metodo di cross-validation a 10 fold per valutare il modello CART.
+
+# Il modello di albero decisionale è stato addestrato utilizzando il metodo "rpart" sul dataset di addestramento. Durante la cross-validation, sono state testate diverse configurazioni del parametro di complessità (cp).
+
+# Il modello è stato valutato su 84 campioni, con 9 variabili predittive e 2 classi target ("Yes", "No").
+
+# I risultati della cross-validation mostrano che l'accuratezza più alta è stata ottenuta con un valore di cp = 0, con un'accuratezza di circa 67% e un valore di Kappa di circa 34%.
+
+# La matrice di confusione per il secondo albero indica un'accuratezza del 77%, con una sensibilità del 60% e una specificità del 91%. Il valore Kappa è di 0.53, indicando una buona concordanza tra le predizioni del modello e i veri valori.
+
+# Complessivamente, il terzo albero CART ha una capacità moderata di predire la classe di appartenenza, con spazio per ulteriori ottimizzazioni per migliorare la precisione complessiva.
+
+
+
+# IV albero
+
+# Fissa il seme per la riproducibilità
+set.seed(123)
+
+# Addestra il modello di random forest con cross-validation
+cv_rf_model <- train(Classification ~ ., data = train, method = "rf", trControl = ctrl, tuneLength = 10)
+
+# Visualizza i risultati del modello di Random Forest 
+plot(cv_rf_model, main = "Risultati della CV in Random Forest")
+
+# Predizioni del modello di random forest sul test set
+predicted_rf <- predict(cv_rf_model, newdata = test)
+# Quando mtry è 2, l'accuratezza media è la più alta, intorno a 0.71.
+
+# Valuta le predizioni del modello di random forest sul test set
+confusionMatrix(predicted_rf, test$Classification)
+
+# È stato utilizzato il metodo di cross-validation a 10 fold per valutare il modello di Random Forest.
+
+# Il modello di Random Forest è stato addestrato utilizzando il metodo "randomForest" sul dataset di addestramento. Durante la cross-validation, sono state testate diverse configurazioni del parametro mtry.
+
+# Il modello è stato valutato su 84 campioni, con 9 variabili predittive e 2 classi target ("Yes", "No").
+
+# I risultati della cross-validation mostrano che l'accuratezza più alta è stata ottenuta con un valore di mtry = 2, con un'accuratezza di circa 71% e un valore di Kappa di circa 0.40.
+
+# La matrice di confusione per il modello di Random Forest indica un'accuratezza del 81.82%, con una sensibilità del 60% e una specificità del 100%. Il valore Kappa è di 0.62, indicando una buona concordanza tra le predizioni del modello e i veri valori.
+
+# Complessivamente, il modello di Random Forest ha dimostrato una buona capacità di predire la classe di appartenenza, con un'accuratezza complessiva del 85% e una buona bilanciata tra sensibilità e specificità.
+
+
+
+
+
+
+### Conclusioni
+# -----------------------------------------------
+# # L'analisi dei modelli ha dimostrato che Random Forest si è distinto come il modello più performante nella previsione del cancro al seno. Con una precisione dell'86.36%, Random Forest ha ottenuto un tasso di errore out-of-bag (OOB) del 30.85%, significativamente migliore rispetto agli altri modelli esaminati, che hanno mostrato un'accuratezza inferiore del 76.19% e un tasso di errore OOB del 40.48% per gli alberi di classificazione (CART).
+
+# L'importanza delle variabili, valutata mediante il calcolo della diminuzione media di Gini, ha evidenziato che Random Forest ha assegnato punteggi più elevati alle variabili come l'età, il glucosio ed il BMI. Questo indica che Random Forest ha identificato e utilizzato in modo efficace i fattori di rischio associati al cancro al seno nella fase di previsione.
+
+# Inoltre, l'analisi della matrice di confusione ha confermato la capacità di Random Forest di discriminare tra le classi di predizione, con una sensibilità del 70% e una specificità del 100%.
+
+# In conclusione, i risultati numerici confermano che Random Forest è il modello preferito per la previsione del cancro al seno, offrendo una combinazione di precisione, stabilità e capacità di identificare i fattori di rischio che lo rendono un potente strumento per la prevenzione e il trattamento della malattia.
+
+
+```
+
+
+

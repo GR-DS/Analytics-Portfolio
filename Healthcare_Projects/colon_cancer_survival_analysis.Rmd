@@ -1,0 +1,2317 @@
+---
+title: "Sopravvivenza Kcolon"
+author: "Guarino Renata"
+date: "2024-03-16"
+output:
+  word_document:
+    toc: true  # Aggiungi tabella dei contenuti
+---
+
+
+
+ Introduzione
+
+Il cancro del colon-retto rappresenta una delle neoplasie maligne più diffuse al mondo, occupando il terzo posto per incidenza con 1,9 milioni di casi, secondo l'Organizzazione Mondiale della Sanità (OMS). Colpisce uomini e donne in misura quasi equivalente, con una maggiore incidenza tra i 60 e i 75 anni. Secondo le statistiche di associazioni come l'AIRC e la Fondazione Umberto Veronesi, la diagnosi precoce del cancro del colon-retto negli stadi I, II e III offre una probabilità di sopravvivenza a 5 anni compresa tra il 60% e l'80%, con una maggiore efficacia nel primo anno dopo la diagnosi. Tuttavia, nel caso di diagnosi in uno stadio avanzato (IV), questa probabilità diminuisce drasticamente al 20%.
+Inoltre, secondo il Codice Europeo Contro il Cancro, il rischio di sviluppare il cancro del colon-retto è notevolmente influenzato dallo stile di vita, con un aumento del 15% nelle persone in sovrappeso e del 32% nelle persone obese, che presentano un indice di massa corporea superiore a 30 kg/m².
+
+L'analisi della sopravvivenza dei pazienti affetti da cancro del colon-retto fornisce importanti informazioni sulla durata della vita dopo la diagnosi e il trattamento. Utilizzando un dataset ottenuto dal sito web del Cancer Imaging [(https://www.cancerimagingarchive.net/collection/colorectal-liver-metastases/)], contenente dati di 197 pazienti e 35 variabili, questo studio si propone di esplorare una serie di fattori che potrebbero influenzare la sopravvivenza dei pazienti con questa malattia.
+Il processo di analisi dei dati ha coinvolto diversi passaggi. Innanzitutto, sono state eseguite operazioni di pulizia per rimuovere variabili non rilevanti e gestire i valori mancanti. Per le variabili quantitative, sono state condotte analisi di posizione e distribuzione dei valori percentuali, verificando la normalità tramite il test di Shapiro-Wilk e il test di Barlett. La correlazione tra le variabili quantitative è stata valutata attraverso il coefficiente e la matrice di correlazione di Pearson. Per le variabili categoriali, sono state eseguite analisi di frequenza percentuale e il test esatto di Fisher per valutare le associazioni tra di esse. È stata inoltre effettuata un'analisi di regressione binaria per esplorare le relazioni tra le variabili categoriali e la variabile di risposta. Tutti i test sono stati condotti con un livello di significatività pari allo 0.05.
+Successivamente, sono state formulate delle ipotesi basate sulla letteratura scientifica e l'esperienza clinica.
+
+E' stata quindi effettuata un'analisi di sopravvivenza con l'utilizzo della regressione di Cox, insieme a diverse procedure statistiche. Tra queste, sono stati impiegati il test di Wald per valutare la significatività dei coefficienti, il test di Schoenfeld per verificare la proporzionalità degli hazard, il calcolo di Cox-Snel per l'omogeneità degli hazard, la tecnica di Kaplan-Meier per stimare le curve di sopravvivenza, e il test del rapporto di verosimiglianza (Likelihood Ratio Test) per confrontare modelli al fine di identificare le variabili che hanno presentato violazioni degli Hazard.
+Per questa analisi, è stato considerato il periodo di 60 mesi (5 anni) dalla diagnosi di cancro del colon-retto.
+
+Infine, per concludere, sono state formulate delle considerazioni generali sui risultati e delle conclusioni sull'analisi effettuata.
+
+```{r setup, include=TRUE}
+
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+knitr::opts_chunk$set(echo = TRUE)
+
+ 
+
+
+
+
+# Caricamento dei Dati e Visualizzazione Preliminare
+
+# Caricamento e descrizione dati
+
+# Installa openxls
+install.packages("openxlsx")
+
+# Carica la libreria openxlsx
+library(openxlsx)
+# Carica la libreria readxl
+library(readxl)
+
+# Specifica il percorso del file Excel
+percorso_file <- "D:/Disco D/Master AI e DataScience/Verifiche/Giordano-Zenga/Colorectal-Liver-Metastases-Clinical-data-April-2023.xlsx"
+
+# Importa il dataset dalla prima pagina
+ColonCancer <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Giordano-Zenga/Colorectal-Liver-Metastases-Clinical-data-April-2023.xlsx", sheet = 1)
+
+
+
+# Definizione delle variabili nel dataset ColonCancer:
+
+# Patient-ID: Identificativo univoco del paziente;
+# De-identify Scout Name: Nome utilizzato per anonimizzare i dati del paziente;
+# Age: Età del paziente;
+# Sex: Sesso del paziente (maschio 1, femmina 2);
+# Major_comorbidity: Presenza o assenza di comorbilità significative nel paziente non meglio specificate;
+# Body_mass_index: Indice di massa corporea del paziente (BMI);
+# Node_positive_primary: Numero di linfonodi positivi al momento della diagnosi primaria del tumore;
+# Synchronous_crlm: Presenza o assenza di metastasi epatiche colorettali sincrone (crlm = colorectal liver metastases);
+# Multiple_metastases: Presenza o assenza di metastasi multiple;
+# Clinrisk_score: Punteggio di rischio clinico associato al paziente (0-5);
+# Clinrisk_stratified: Categoria di rischio clinico del paziente (alta-bassa);
+# Carcinoembryonic_antigen: Livello dell'antigene carcinoembrionario nel paziente (CEA);
+# Max_tumor_size: Dimensione massima del tumore primario;
+# Bilobar_disease: Presenza o assenza di malattia bi-lobare (interessamento di entrambi i lobi del fegato);
+# Extrahep_disease: Presenza o assenza di malattia extra-epatica (metastasi al di fuori del fegato);
+# Chemo_before_liver_resection: Somministrazione di chemioterapia prima della resezione epatica;
+# Preoperative_pve: Embolizzazione portale pre-operatoria (PVE = portal vein embolization);
+# Steatosis_yesno: Presenza o assenza di steatosi epatica;
+# Presence_sinusoidal_dilata: Presenza o assenza di dilatazione sinusoidale;
+# NASH_score: Punteggio di gravità della steatoepatite non alcolica (NASH);
+# NASH_yesno: Presenza o assenza di steatoepatite non alcolica;
+# NASH_greater_4: Indicatore se il punteggio NASH è superiore a 4;
+# Total_response_percent: Percentuale di risposta totale al trattamento;
+# Necrosis_percent: Percentuale di necrosi nel tumore primario;
+# Fibrosis_percent: Percentuale di fibrosi nel tumore;
+# Fibrosis_greater_40_percent: Indicatore se la percentuale di fibrosi è superiore al 40%;
+# Mucin_percent: Percentuale di mucina nel tumore;
+# Overall_survival_months: Sopravvivenza complessiva in mesi;
+# Vital_status: Stato vitale del paziente (vivo o deceduto);
+# Progression_or_recurrence: Presenza o assenza di progressione o ricorrenza della malattia primaria;
+# Months_to_DFS_progression: Sopravvivenza libera da malattia calcolata in mesi (DFS - sopravvivenza libera da malattia);
+# Vital_status_DFS: Stato vitale del paziente durante il periodo libero da malattia primaria;
+# Progression_or_recurrence_liveronly: Progressione o ricorrenza della malattia solo nel fegato;
+# Months_to_liver_DFS_progression: Sopravvivenza libera da malattia al fegeato calcolata in mesi; 
+# vital_status_liver_DFS: Stato vitale del paziente durante il periodo libero da malattia secondaria (epatica).
+
+
+# " Rimozione delle variabili non pertinenti"
+
+# In questa fase decido di rimuovere alcune variabili ritenute non fondamentali per il mio studio:
+
+# 1. De-identify Scout Name: è più significativa la variabile "Patient- ID"; 
+# 2. Clinrisk_score: è più significativa la variabile "clinrisk_stratified";
+# 3. Carcinoembryonic_antigen: non è definibile come un fattore certo di positiivtà al K colon-rettale;
+# 4. Bilobar_disease: è più significativa la variabile "synchronous_crlm";
+# 5. Preoperative_pve: non è una variabile rilevante ai fini dei miei studi;
+# 6. Presence_sinusoidal_dilata: non è una variabile rilevante ai fini dei miei studi;
+# 7. NASH_score,NASH_yesno,NASH_greater_4: è più rappresentativa la variabile steatosis_yesno;
+# 8. Fibrosis_percent:è più rappresentativa la variabile fibrosis_greater_40_percen;
+# 9. Relevant_notes: non contiene informazioni.
+
+
+# Visualizza le prime righe del dataset;
+
+names(ColonCancer)
+head(ColonCancer, n = 10)
+
+# Carica il pacchetto dplyr
+library(dplyr)
+
+# Rimozione delle variabili non necessarie dal dataset
+ColonCancer_modificato <- ColonCancer %>%
+  select(-`De-identify Scout Name`, -clinrisk_score, -carcinoembryonic_antigen,
+         -bilobar_disease, -preoperative_pve, -presence_sinusoidal_dilata, 
+         -NASH_score, -NASH_yesno, -NASH_greater_4, -relevant_notes,
+         -fibrosis_percent)
+
+
+
+# Visualizzazione delle colonne del dataset ColonCancer_modificato
+names(ColonCancer_modificato)
+
+
+
+# Eliminazione e/o sostituzione dei valori mancanti presenti nel dataset 
+
+
+# Controlla se ci sono valori NA in qualsiasi cella del dataset
+any(is.na(ColonCancer_modificato))
+
+# Controlla se ci sono valori -999 in qualsiasi cella del dataset
+any(ColonCancer_modificato == -999)
+
+# Conteggio dei valori pari a -999 nel dataset ColonCancer_modificato
+sum(ColonCancer_modificato == -999, na.rm = TRUE)
+
+
+
+# Controlla se ci sono valori -999 per ogni variabile del dataset
+any_minus_999 <- sapply(ColonCancer_modificato, function(x) any(x == -999))
+
+# Visualizza le variabili con almeno un valore -999
+vars_with_minus_999 <- names(any_minus_999)[any_minus_999]
+
+# Stampa le variabili con almeno un valore -999 e il numero esatto di tali valori
+for (var in vars_with_minus_999) {
+  num_minus_999 <- sum(ColonCancer_modificato[[var]] == -999)
+  cat("Variabile:", var, "\tValori -999:", num_minus_999, "\n")
+}
+
+
+
+# Calcola la percentuale di valori -999 nella variabile clinrisk_stratified
+percentuale_minus_999_clinrisk <- (sum(ColonCancer_modificato$clinrisk_stratified == -999) / nrow(ColonCancer_modificato)) * 100
+
+# Stampa la percentuale
+print(paste("Percentuale di valori -999 nella variabile clinrisk_stratified:", percentuale_minus_999_clinrisk, "%"))
+
+
+# Per la variabile categoriale clinrisk_stratified, che presenta quasi il 15% di dati mancanti, opto per la sostituzione di tali valori con il numero "3". 
+# Questa scelta è stata fatta poiché tale valore si discosta dai valori binari tradizionalmente assunti dalla variabile.
+
+
+# Calcola la moda della variabile clinrisk_stratified
+mode_clinrisk <- names(sort(table(ColonCancer_modificato$clinrisk_stratified), decreasing = TRUE))[1]
+
+# Sostituisci i valori "3" con la moda
+ColonCancer_modificato$clinrisk_stratified[ColonCancer_modificato$clinrisk_stratified == 3] <- mode_clinrisk
+
+# Verifica che la sostituzione sia avvenuta correttamente controllando la distribuzione dei valori
+table(ColonCancer_modificato$clinrisk_stratified)
+
+# Controlla se ci sono valori mancanti nella variabile clinrisk_stratified dopo la sostituzione
+sum(is.na(ColonCancer_modificato$clinrisk_stratified))
+
+
+# Per la variabile "fibrosis_greater_40_percent" decido di sostituire i tre valori mancanti con il valore della moda
+
+# Calcola la moda della variabile fibrosis_greater_40_percent
+moda_fibrosis <- names(sort(table(ColonCancer_modificato$fibrosis_greater_40_percent), decreasing = TRUE))[1]
+
+# Sostituisci i valori mancanti con la moda
+ColonCancer_modificato$fibrosis_greater_40_percent[ColonCancer_modificato$fibrosis_greater_40_percent == -999] <- moda_fibrosis
+
+# Controlla se ci sono ancora dati mancanti per la variabile "fibrosis_greater_40_percent"
+sum(is.na(ColonCancer_modificato$fibrosis_greater_40_percent))
+
+
+# "Imputazione dei valori mancanti per le Variabili Quantitative"
+
+
+# Calcola la media per le altre variabili
+mean_total_response_percent <- mean(ColonCancer_modificato$total_response_percent[ColonCancer_modificato$total_response_percent != -999])
+mean_necrosis_percent <- mean(ColonCancer_modificato$necrosis_percent[ColonCancer_modificato$necrosis_percent != -999])
+mean_mucin_percent <- mean(ColonCancer_modificato$mucin_percent[ColonCancer_modificato$mucin_percent != -999])
+
+# Visualizza la media calcolata per total_response_percent, necrosis_percent e mucin_percent
+print(paste("Media per total_response_percent:", mean_total_response_percent))
+print(paste("Media per necrosis_percent:", mean_necrosis_percent))
+print(paste("Media per mucin_percent:", mean_mucin_percent))
+
+# Dato il limitato numero di valori mancanti per le tre variabili (3 per total_response_percent, 2 per necrosis_percent e 3 per mucin_percent), 
+# ho scelto di calcolare e sostituire tali valori con la media corrispondente di ciascuna variabile.
+
+# Sostituisci i valori mancanti con la media per le altre variabili percentuali
+ColonCancer_modificato$total_response_percent[ColonCancer_modificato$total_response_percent == -999] <- mean_total_response_percent
+ColonCancer_modificato$necrosis_percent[ColonCancer_modificato$necrosis_percent == -999] <- mean_necrosis_percent
+ColonCancer_modificato$mucin_percent[ColonCancer_modificato$mucin_percent == -999] <- mean_mucin_percent
+
+
+# Controlla se ci sono ancora dati mancanti per la variabile "total_response_percent"
+sum(is.na(ColonCancer_modificato$total_response_percent))
+
+# Controlla se ci sono ancora dati mancanti per la variabile "necrosis_percent"
+sum(is.na(ColonCancer_modificato$necrosis_percent))
+
+# Controlla se ci sono ancora dati mancanti per la variabile "mucin_percent"
+sum(is.na(ColonCancer_modificato$mucin_percent))
+
+
+# Modifico il nome al mio dataset per inziare la mia analisi statistica
+Kcolon <- ColonCancer_modificato
+
+
+
+
+
+# Analisi variabili quantitative
+
+# Indici di posizone per le mie variabili continue
+
+# Seleziona solo le variabili continue di interesse
+variabili_continue <- Kcolon[, c("age", "body_mass_index", "max_tumor_size", "total_response_percent", 
+                                 "necrosis_percent", "mucin_percent", "overall_survival_months", 
+                                 "months_to_DFS_progression", "months_to_liver_DFS_progression")]
+
+# Calcola le statistiche descrittive per le variabili continue
+descrizione_variabili <- data.frame(
+  Variabile = c("Età", "Indice di Massa Corporea", "Dimensione Massima del Tumore", "Percentuale di Risposta Totale", 
+                "Percentuale di Necrosi", "Percentuale di Mucina", "Sopravvivenza Complessiva (mesi)", 
+                "Mesi alla Progressione di Senza Malattia", "Mesi alla Progressione del Fegato"),
+  Media = round(colMeans(variabili_continue, na.rm = TRUE), 2),
+  Mediana = round(sapply(variabili_continue, median, na.rm = TRUE), 2),
+  Moda = sapply(variabili_continue, function(x) {
+    moda <- names(sort(table(x), decreasing = TRUE)[1])
+    if(length(moda) > 1) {
+      moda <- paste(moda, collapse = ", ")
+    }
+    return(moda)
+  }),
+  Deviazione_Standard = round(sapply(variabili_continue, sd, na.rm = TRUE), 2),
+  Minimo = round(apply(variabili_continue, 2, min, na.rm = TRUE), 2),
+  Massimo = round(apply(variabili_continue, 2, max, na.rm = TRUE), 2),
+  Q1 = round(apply(variabili_continue, 2, quantile, probs = 0.25, na.rm = TRUE), 2),
+  Q3 = round(apply(variabili_continue, 2, quantile, probs = 0.75, na.rm = TRUE), 2),
+  IQR = round(apply(variabili_continue, 2, IQR, na.rm = TRUE), 2)
+)
+
+# Visualizza il dataframe delle statistiche descrittive
+print(descrizione_variabili)
+
+
+# Età (Age)
+
+# L'età media dei soggetti nel dataset è di circa 59.65 anni, con una mediana di 61 anni.
+# La deviazione standard di circa 12.31 anni indica una considerevole dispersione dei dati intorno alla media.
+# La maggior parte dei soggetti (circa il 50%) ha un'età compresa tra 52 e 69 anni (intervallo interquartile).
+# Per l'età, la moda è di 74 anni, il che indica che 74 anni è l'età più frequente all'interno del dataset.
+
+
+
+
+# Indice di Massa Corporea (Body Mass Index)
+
+# L'IMB medio dei soggetti è di circa 27.33, con una mediana di 26.80.
+# La deviazione standard di circa 4.92 suggerisce una notevole variabilità nell'IMC tra i soggetti.
+# La maggior parte dei soggetti (circa il 50%) ha un IMC compreso tra 23.70 e 30.40.
+# Per l'indice di massa corporea, la moda è di 26.3, suggerendo che 26.3 è il BMI più comune, indicativo di un peso normale.
+# Prendendo in considerazione i range definiti dall'OMS, si può dire che la maggior parte dei partecipanti rientrano nei range di sovrappeso o obesità, con una media che suggerisce una tendenza verso il sovrappeso,
+# con diversità nella distribuzione di peso.
+
+
+
+# Dimensione Massima del Tumore (Max Tumor Size)
+
+# La dimensione media massima del tumore è di circa 3.48, con una mediana di 2.80.
+# La deviazione standard di circa 2.56 indica una notevole variabilità nelle dimensioni dei tumori tra i soggetti.
+# La maggior parte dei tumori (circa il 50%) ha una dimensione compresa tra 2.00 e 4.30.
+# Per la dimensione massima del tumore, la moda è di 2.5, indicando che 2.5 è la dimensione più comune del tumore.
+
+
+
+# Percentuale di Risposta Totale (Total Response Percent)
+
+# Questa variabile indica la percentuale di risposta totale al trattamento, con valori più alti che indicano una risposta più efficace.
+# La percentuale media di risposta totale è di circa 0.54, con una mediana di 0.50.
+# La maggior parte dei soggetti ha una percentuale di risposta compresa tra 0.35 e 0.70.
+# Per la percentuale di risposta totale, la moda è di 0.5, suggerendo che 0.5 è la risposta più comune, ossia il 50%.
+
+
+
+# Percentuale di Necrosi (Necrosis Percent)
+
+# Questa variabile indica la percentuale di necrosi nel tessuto tumorale, con valori più alti che indicano una maggiore morte cellulare.
+# La percentuale media di necrosi è di circa 0.31, con una mediana di 0.30.
+# La maggior parte dei soggetti ha una percentuale di necrosi compresa tra 0.10 e 0.50.
+# Per la percentuale di necrosi, la moda è di 0.3, indicando che 0.3 è la percentuale di necrosi più comune.
+
+
+
+# Percentuale di Mucina (Mucin Percent)
+
+# Questa variabile indica la percentuale di mucina presente nel tessuto tumorale, con valori più alti che indicano una maggiore presenza di mucina.
+# La percentuale media di mucina è di circa 0.05, con una mediana di 0.00.
+# La maggior parte dei soggetti ha una percentuale di mucina molto bassa, ma ci sono alcune osservazioni con valori più alti.
+# Per la percentuale di mucina, la moda è di 0, suggerendo che la mucina è assente nella maggior parte dei casi.
+
+
+
+# Sopravvivenza Complessiva (mesi) (Overall Survival Months)
+
+# Questa variabile rappresenta la durata della sopravvivenza complessiva dei soggetti dal momento della diagnosi.
+# La sopravvivenza media complessiva è di circa 66.54 mesi, con una mediana di 66.10 mesi.
+# La maggior parte dei soggetti ha una sopravvivenza compresa tra 34.40 e 96.87 mesi.
+# Per la sopravvivenza complessiva in mesi, la moda è di 24.3, indicando che 24.3 mesi è la durata di sopravvivenza più comune.
+
+
+
+# Mesi Senza malattia (Months to DFS Progression)
+
+# Questa variabile indica il tempo trascorso fino alla progressione della malattia o fino all'ultimo follow-up senza progressione.
+# Il tempo medio senza malattia è di circa 41.20 mesi, con una mediana di 22.33 mesi.
+# La maggior parte dei soggetti ha un tempo alla progressione senza malattia compreso tra 9.67 e 69.33 mesi.
+# Per il tempo espresso in mesi, libero da mattia, la moda è di 2.6, suggerendo che tale valore indica il periodo di tempo senza malattia
+
+
+# Mesi Senza malattia del fegato (Months to Liver DFS Progression)
+
+# Questa variabile indica il tempo trascorso fino alla progressione della malattia nel fegato o fino all'ultimo follow-up senza progressione.
+# Il tempo medio alla progressione del fegato è di circa 53.24 mesi, con una mediana di 44.83 mesi.
+# La maggior parte dei soggetti ha un tempo alla progressione del fegato compreso tra 15.20 e 92.00 mesi.
+# Per i mesi alla progressione di senza malattia del fegato, la moda è di 2.6, suggerendo che 2.6 mesi è il periodo più comune di progressione senza malattia al fegato.
+
+
+
+# "Analisi della distribuzione dei valori: Frequenza Percentuale"
+
+# Calcola le tabelle di frequenza percentuale con gli intervalli definiti
+
+
+# Variabile: Età (Age)
+age_intervals <- cut(Kcolon$age, breaks = c(20, 40, 60, 80, Inf), labels = c("20-40", "40-60", "60-80", "80+"))
+age_freq_table <- table(age_intervals)
+age_percent_table <- prop.table(age_freq_table) * 100
+
+
+# Variabile: Indice di Massa Corporea (Body Mass Index)
+bmi_intervals <- cut(Kcolon$body_mass_index, breaks = c(0, 18.5, 25, 30, Inf), labels = c("Sottopeso", "Normale", "Sovrappeso", "Obesità"))
+bmi_freq_table <- table(bmi_intervals)
+bmi_percent_table <- prop.table(bmi_freq_table) * 100
+
+
+# Variabile: Dimensione Massima del Tumore (Max Tumor Size)
+max_tumor_intervals <- cut(Kcolon$max_tumor_size, breaks = c(0, 3, 6, Inf), labels = c("0-3", "3-6", "6+"))
+max_tumor_freq_table <- table(max_tumor_intervals)
+max_tumor_percent_table <- prop.table(max_tumor_freq_table) * 100
+
+
+# Variabile: Percentuale di Risposta Totale (Total Response Percent)
+total_response_intervals <- cut(Kcolon$total_response_percent * 100, breaks = c(20, 40, 60, 80, 100), labels = c("20-40", "40-60", "60-80", "80-100"))
+total_response_freq_table <- table(total_response_intervals)
+total_response_percent_table <- prop.table(total_response_freq_table) * 100
+
+
+# Variabile: Percentuale di Necrosi (Necrosis Percent)
+necrosis_intervals <- cut(Kcolon$necrosis_percent * 100, breaks = c(0, 20, 40, 60, 80, 100), labels = c("0-20", "20-40", "40-60", "60-80", "80-100"))
+necrosis_freq_table <- table(necrosis_intervals)
+necrosis_percent_table <- prop.table(necrosis_freq_table) * 100
+
+
+# Variabile: Percentuale di Mucina (Mucin Percent)
+mucin_intervals <- cut(Kcolon$mucin_percent * 100, 
+                       breaks = c(0, 20, 40, 60, 80, 100), 
+                       labels = c("0-20", "20-40", "40-60", "60-80", "80-100"))
+mucin_freq_table <- table(mucin_intervals)
+mucin_percent_table <- prop.table(mucin_freq_table) * 100
+
+
+# Variabile: Sopravvivenza Complessiva (mesi) (Overall Survival Months)
+overall_survival_intervals <- cut(Kcolon$overall_survival_months, breaks = c(0, 20, 40, 60, 80, 100, Inf), labels = c("0-20", "20-40", "40-60", "60-80", "80-100", "100+"))
+overall_survival_freq_table <- table(overall_survival_intervals)
+overall_survival_percent_table <- prop.table(overall_survival_freq_table) * 100
+
+
+# Variabile: Mesi alla Progressione di Senza Malattia (Months to DFS Progression)
+months_to_DFS_intervals <- cut(Kcolon$months_to_DFS_progression, breaks = c(0, 20, 40, 60, 80, 100, Inf), labels = c("0-20", "20-40", "40-60", "60-80", "80-100", "100+"))
+months_to_DFS_freq_table <- table(months_to_DFS_intervals)
+months_to_DFS_percent_table <- prop.table(months_to_DFS_freq_table) * 100
+
+
+# Variabile: Mesi alla Progressione del Fegato (Months to Liver DFS Progression)
+months_to_liver_DFS_intervals <- cut(Kcolon$months_to_liver_DFS_progression, breaks = c(0, 20, 40, 60, 80, 100, Inf), labels = c("0-20", "20-40", "40-60", "60-80", "80-100", "100+"))
+months_to_liver_DFS_freq_table <- table(months_to_liver_DFS_intervals)
+months_to_liver_DFS_percent_table <- prop.table(months_to_liver_DFS_freq_table) * 100
+
+
+# Visualizza le tabelle di frequenza percentuale
+print("Tabella di frequenza percentuale per l'età:")
+print(age_percent_table)
+# Il 9.64% dei soggetti ha un'età compresa tra 20 e 40 anni.
+# Il 37.06% dei soggetti ha un'età compresa tra 40 e 60 anni.
+# Il 50.76% dei soggetti ha un'età compresa tra 60 e 80 anni.
+# Il 2.54% dei soggetti ha un'età superiore a 80 anni.
+
+print("Tabella di frequenza percentuale per l'Indice di Massa Corporea:")
+print(bmi_percent_table)
+# Il 1.52% dei soggetti è classificato come Sottopeso.
+# Il 34.52% dei soggetti è classificato come Normale.
+# Il 35.53% dei soggetti è classificato come Sovrappeso.
+# Il 28.43% dei soggetti è classificato come Obeso.
+
+
+print("Tabella di frequenza percentuale per la Dimensione Massima del Tumore:")
+print(max_tumor_percent_table)
+# Il 55.90% dei soggetti ha un tumore con dimensioni comprese tra 0 e 3.
+# Il 31.79% dei soggetti ha un tumore con dimensioni comprese tra 3 e 6.
+# Il 12.31% dei soggetti ha un tumore con dimensioni superiori a 6.
+
+
+print("Tabella di frequenza percentuale per la Percentuale di Risposta Totale:")
+print(total_response_percent_table)
+# Il 29.89% dei soggetti ha una percentuale di risposta compresa tra 20 e 40.
+# Il 35.33% dei soggetti ha una percentuale di risposta compresa tra 40 e 60.
+# Il 21.19% dei soggetti ha una percentuale di risposta compresa tra 60 e 80.
+# Il 13.58% dei soggetti ha una percentuale di risposta compresa tra 80 e 100.
+
+
+print("Tabella di frequenza percentuale per la Percentuale di Necrosi:")
+print(necrosis_percent_table)
+# Il 39.20% dei soggetti ha una percentuale di necrosi compresa tra 0 e 20.
+# Il 30.68% dei soggetti ha una percentuale di necrosi compresa tra 20 e 40.
+# Il 19.32% dei soggetti ha una percentuale di necrosi compresa tra 40 e 60.
+# Il 6.82% dei soggetti ha una percentuale di necrosi compresa tra 60 e 80.
+# Il 3.98% dei soggetti ha una percentuale di necrosi compresa tra 80 e 100.
+
+
+print("Tabella di frequenza percentuale per la Percentuale di Mucina:")
+print(mucin_percent_table)
+# Il 61.76% dei soggetti non presenta mucina.
+# Il 17.65% dei soggetti ha una percentuale di mucina compresa tra 0 e 20.
+# L'11.76% dei soggetti ha una percentuale di mucina compresa tra 20 e 40.
+# L'8.82% dei soggetti ha una percentuale di mucina compresa tra 40 e 60.
+
+
+print("Tabella di frequenza percentuale per la Sopravvivenza Complessiva (mesi):")
+print(overall_survival_percent_table)
+# Il 10.15% dei soggetti ha una sopravvivenza compresa tra 0 e 20 mesi.
+# Il 20.81% dei soggetti ha una sopravvivenza compresa tra 20 e 40 mesi.
+# Il 12.18% dei soggetti ha una sopravvivenza compresa tra 40 e 60 mesi.
+# Il 18.78% dei soggetti ha una sopravvivenza compresa tra 60 e 80 mesi.
+# Il 15.74% dei soggetti ha una sopravvivenza compresa tra 80 e 100 mesi.
+# Il 22.34% dei soggetti ha una sopravvivenza superiore a 100 mesi.
+
+
+print("Tabella di frequenza percentuale per i Mesi Senza Malattia Primaria:")
+print(months_to_DFS_percent_table)
+# Il 46.19% dei soggetti ha un periodo libero da progressione primaria compreso tra 0 e 20 mesi.
+# Il 17.26% dei soggetti ha un periodo libero da progressione primaria compreso tra 20 e 40 mesi.
+# Il 6.60% dei soggetti ha un periodo libero da progressione primaria compreso tra 40 e 60 mesi.
+# L'8.12% dei soggetti ha un periodo libero da progressione primaria compreso tra 60 e 80 mesi.
+# Il 9.14% dei soggetti ha un periodo libero da progressione primaria compreso tra 80 e 100 mesi.
+# Il 12.69% dei soggetti ha un periodo libero da progressione primaria superiore a 100 mesi.
+
+
+print("Tabella di frequenza percentuale per i Mesi Senza malattia al Fegato:")
+print(months_to_liver_DFS_percent_table)
+# Il 30.96% dei soggetti ha un periodo libero da progressione secondaria compreso tra 0 e 20 mesi.
+# Il 17.26% dei soggetti ha un periodo libero da progressione secondaria compreso tra 20 e 40 mesi.
+# L'8.12% dei soggetti ha un periodo  libero da progressione secondariacompreso tra 40 e 60 mesi.
+# Il 12.69% dei soggetti ha un periodo libero da progressione secondaria compreso tra 60 e 80 mesi.
+# Il 14.21% dei soggetti ha un periodo libero da progressione secondaria compreso tra 80 e 100 mesi.
+# Il 16.75% dei soggetti ha un periodo di progressione superiore a 100 mesi
+
+
+
+
+# "Analisi delle Correlazioni tra Variabili Continue ed i mesi di Sopravvivenza"
+
+# Seleziona solo le variabili continue e la variabile risposta
+variabili_continue_e_risposta <- Kcolon[, c("overall_survival_months", "age", "body_mass_index", "max_tumor_size", "total_response_percent", "necrosis_percent", "mucin_percent", "months_to_DFS_progression", "months_to_liver_DFS_progression")]
+
+# Calcola la matrice delle correlazioni
+correlazioni_tutte <- cor(variabili_continue_e_risposta, use = "pairwise.complete.obs")
+
+# Visualizza la matrice delle correlazioni
+print(correlazioni_tutte)
+
+# Visualizza il grafico a heatmap della matrice di correlazione
+library(reshape2)
+library(ggplot2)
+
+heatmap <- ggplot(data = melt(correlazioni_tutte), aes(Var2, Var1, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 10, hjust = 1)) +
+  coord_fixed() +
+  labs(title = "Heatmap Correlation matrix")  # Aggiungi il titolo
+
+# Mostra il grafico
+print(heatmap)
+
+
+# Premessa: La correlazione tra queste variabili non implica necessariamente una relazione causale diretta, ma piuttosto un'associazione statistica all'interno del campione di dati analizzato.
+
+# Età (Age):
+
+# Ha una correlazione negativa e debole con l'Indice di Massa Corporea (-0.16), suggerendo che ciò suggerisce che, all'interno del campione considerato, le persone con un'età più bassa tendono ad avere un BMI più alto.
+# Ha correlazioni molto deboli con le altre variabili nel dataset.
+
+
+# Indice di Massa Corporea (Body Mass Index):
+
+# Come già visto una correlazione negativa e debole con l'età (-0.16).
+# Ha una correlazione debole e negativa con la Percentuale di Risposta Totale (-0.08), suggerendo che il BMI tende a diminuire leggermente all'aumentare della percentuale di risposta totale.
+# Ha una correlazione debole e positiva con la Sopravvivenza Complessiva (0.11), indicando che il BMI tende ad aumentare leggermente con l'aumentare della sopravvivenza complessiva.
+# Questo potrebbe indicare che i soggetti con un BMI più basso potrebbero avere una migliore risposta al trattamento rispetto a quelli con un BMI più alto.
+
+
+# Dimensione Massima del Tumore (Max Tumor Size):
+
+# Ha correlazioni molto deboli con le altre variabili nel dataset.
+
+
+# Percentuale di Risposta Totale (Total Response Percent):
+
+# Ha una correlazione debole e positiva con la Percentuale di Necrosi (0.47), suggerendo che la percentuale di risposta totale tende ad aumentare leggermente all'aumentare della percentuale di necrosi del K.
+# Ha una correlazione debole e positiva con la Percentuale di Mucina (0.28), indicando che la percentuale di risposta totale tende ad aumentare leggermente all'aumentare della percentuale di mucina.
+
+# Percentuale di Necrosi (Necrosis Percent):
+
+# Come già visto ha una correlazione moderata e positiva con la Percentuale di Risposta Totale (0.47).
+# Ha una correlazione moderata e negativa con la Percentuale di Mucina (-0.26), suggerendo che la percentuale di necrosi tende a diminuire all'aumentare della percentuale di mucina.
+# Quest'ultima relazione, seppur intuitiva, conferma che la percentuale di necrosi tende a diminuire all'aumentare della percentuale di mucina.
+
+
+# Percentuale di Mucina (Mucin Percent):
+# Come già visto ha una correlazione debole e positiva con la Percentuale di Risposta Totale (0.28).
+
+
+# Sopravvivenza Complessiva (mesi) (Overall Survival Months):
+# Ha una correlazione molto forte con i mesi liberi da malattia primaria (0.72) ed i mesi liberi da malattia secondaria al fegato (0.83), indicando che la sopravvivenza complessiva è fortemente correlata con entrambi.
+
+
+# Mesi liberi da malattia primaria (Months to DFS Progression):
+# Conferma una correlazione molto forte con i mesi liberi da malattia secondaria (0.82), suggerendo che i due periodi di libertà prima della progressione sono fortemente correlati.
+
+# Mesi liberi da malattia secondaria (Months_to_liver_DFS_progression):
+# Conferma una correlazione forte (coefficiente di correlazione di 0.8278) con la durata complessiva della sopravvivenza
+
+
+
+# Test di Normalità: "Analisi della Distribuzione Normale dei Dati"
+
+# Test di Shapiro-Wilk per valutare la normalità delle variabili continue
+test_normalita <- apply(variabili_continue, 2, function(x) {
+  shapiro.test(x)$p.value
+})
+
+# Visualizza i risultati dei test di normalità
+test_normalita
+
+
+# Età (Age): Il valore p ottenuto dal test di Shapiro-Wilk è 0.00954, indicando che l'età non segue una distribuzione normale poiché il valore p è inferiore al livello di significatività convenzionale del 5%.
+# Indice di Massa Corporea (Body Mass Index): Il valore p ottenuto è 0.00699, suggerendo che l'Indice di Massa Corporea non segue una distribuzione normale, poiché il valore p è inferiore al livello di significatività del 5%.
+# Dimensione Massima del Tumore (Max Tumor Size): Il valore p è molto basso (circa 6.34e-14), confermando che la Dimensione Massima del Tumore non segue una distribuzione normale.
+# Percentuale di Risposta Totale (Total Response Percent): Il valore p è 0.000375, indicando che questa variabile non segue una distribuzione normale.
+# Percentuale di Necrosi (Necrosis Percent): Il valore p ottenuto è estremamente basso (circa 9.08e-08), confermando che la Percentuale di Necrosi non segue una distribuzione normale.
+# Percentuale di Mucina (Mucin Percent): Il valore p ottenuto è praticamente nullo (circa 1.76e-25), confermando che la Percentuale di Mucina non segue una distribuzione normale.
+# Sopravvivenza Complessiva (mesi) (Overall Survival Months): Il valore p è 7.06e-06, indicando che questa variabile non segue una distribuzione normale.
+# Mesi prima della progressione primaria (Months to DFS Progression): Il valore p è molto basso (circa 1.48e-13), confermando che questa variabile non segue una distribuzione normale.
+# Mesi prima della progressione secondaria (Months to Liver DFS Progression): Il valore p è circa 8.63e-10, confermando che questa variabile non segue una distribuzione normale.
+
+
+
+#Test di Omoschedasticità: "Valutazione dell'Uguaglianza delle Varianze"
+
+# Test di Bartlett per valutare l'omoschedasticità delle variabili continue
+library(car)  # Carica il pacchetto 'car' per il test di Bartlett
+test_omoschedasticita <- bartlett.test(variabili_continue)
+
+# Visualizza il risultato del test di Bartlett
+test_omoschedasticita
+
+
+# La statistica del test (Bartlett's K-squared) è 6605.3 con 8 gradi di libertà e un valore p molto basso, inferiore al livello di significatività convenzionale di 0.05 (p < 0.05), 
+# indicando che vi è evidenza sufficiente per respingere l'ipotesi nulla di omoschedasticità.
+
+
+
+
+
+# Analisi variabili categoriali
+
+# "Analisi delle Frequenze Percentuali delle Variabili Categoriche"
+
+# Crea le tabelle di contingenza per le variabili binarie
+table_sex <- table(Kcolon$sex)
+table_major_comorbidity <- table(Kcolon$major_comorbidity)
+table_node_positive_primary <- table(Kcolon$node_positive_primary)
+table_synchronous_crlm <- table(Kcolon$synchronous_crlm)  
+table_multiple_metastases <- table(Kcolon$multiple_metastases)
+table_clinrisk_stratified <- table(Kcolon$clinrisk_stratified)
+table_extrahep_disease <- table(Kcolon$extrahep_disease)
+table_chemo_before_liver_resection <- table(Kcolon$chemo_before_liver_resection)
+table_steatosis_yesno <- table(Kcolon$steatosis_yesno)
+table_fibrosis_greater_40_percent <- table(Kcolon$fibrosis_greater_40_percent)
+table_vital_status <- table(Kcolon$vital_status)
+table_progression_or_recurrence <- table(Kcolon$progression_or_recurrence)
+table_progression_or_recurrence_liveronly <- table(Kcolon$progression_or_recurrence_liveronly)
+table_vital_status_DFS <- table(Kcolon$vital_status_DFS) 
+table_vital_status_liver_DFS <- table(Kcolon$vital_status_liver_DFS)
+
+# Calcola le percentuali manualmente
+percentuale_sex <- table_sex / sum(table_sex) * 100
+percentuale_major_comorbidity <- table_major_comorbidity / sum(table_major_comorbidity) * 100
+percentuale_node_positive_primary <- table_node_positive_primary / sum(table_node_positive_primary) * 100
+percentuale_synchronous_crlm <- table_synchronous_crlm / sum(table_synchronous_crlm) * 100
+percentuale_multiple_metastases <- table_multiple_metastases / sum(table_multiple_metastases) * 100
+percentuale_clinrisk_stratified <- table_clinrisk_stratified / sum(table_clinrisk_stratified) * 100
+percentuale_extrahep_disease <- table_extrahep_disease / sum(table_extrahep_disease) * 100
+percentuale_chemo_before_liver_resection <- table_chemo_before_liver_resection / sum(table_chemo_before_liver_resection) * 100
+percentuale_steatosis_yesno <- table_steatosis_yesno / sum(table_steatosis_yesno) * 100
+percentuale_fibrosis_greater_40_percent <- table_fibrosis_greater_40_percent / sum(table_fibrosis_greater_40_percent) * 100
+percentuale_vital_status <- table_vital_status / sum(table_vital_status) * 100
+percentuale_progression_or_recurrence <- table_progression_or_recurrence / sum(table_progression_or_recurrence) * 100
+percentuale_progression_or_recurrence_liveronly <- table_progression_or_recurrence_liveronly / sum(table_progression_or_recurrence_liveronly) * 100
+percentuale_vital_status_DFS <- table_vital_status_DFS /sum(table_vital_status_DFS) * 100
+percentuale_vital_status_liver_DFS <- table_vital_status_liver_DFS / sum(table_vital_status_liver_DFS) * 100
+
+# Visualizza le percentuali
+
+# Visualizza le percentuali per la variabile 'sex'
+print(percentuale_sex)
+# Il 59.39% dei soggetti sono di sesso maschile (1)
+# Il 40.61% dei pazienti sono di sesso femminile (2)
+
+# Visualizza le percentuali per la variabile 'major_comorbidity'
+print(percentuale_major_comorbidity)
+# Il 44.67% dei pazienti non ha comorbilità maggiori (0)
+# Il 55.33% dei pazienti ha comorbilità maggiori (1)
+
+# Visualizza le percentuali per la variabile 'node_positive_primary'
+print(percentuale_node_positive_primary)
+# Il 64.97% dei casi non ha linfonodi positivi al momento della diagnosi (0)
+# Il 35.03% dei casi ha linfonodi positivi al momento della diagnosi (1)
+
+# Visualizza le percentuali per la variabile 'synchronous_crlm'
+print(percentuale_synchronous_crlm)
+# Il 43.65% dei soggetti non ha metastasi sincrone nel carcinoma del colon-retto (0)
+# Il 56.35% dei casi ha metastasi sincrone nel carcinoma del colon-retto (1)
+
+# Visualizza le percentuali per la variabile 'multiple_metastases'
+print(percentuale_multiple_metastases)
+# 42.13% dei casi non ha multiple metastasi (0)
+# 57.87% degli individui ha metastasi multiple (1)
+
+# Visualizza le percentuali per la variabile 'clinrisk_stratified'
+print(percentuale_clinrisk_stratified)
+# Il 59.39% dei pazienti appartiene alla classe di rischio 0 (basso)
+# Il 25.89% dei pazienti appartiene alla classe di rischio 1 (alto)
+# Il 14.72% dei casi appartiene alla classe di rischio 3 (risposte mancanti)
+
+# Visualizza le percentuali per la variabile 'extrahep_disease'
+print(percentuale_extrahep_disease)
+# Il 91.37% degli individui non presenta malattia extraepatica (0)
+# L'8.63% degli individui presenta malattia extraepatica (1)
+
+# Visualizza le percentuali per la variabile 'chemo_before_liver_resection'
+print(percentuale_chemo_before_liver_resection)
+# Il 38.07% dei pazienti non ha ricevuto chemioterapia prima della resezione epatica (0)
+# Il 61.93% dei pazienti ha ricevuto chemioterapia prima della resezione epatica (1)
+
+# Visualizza le percentuali per la variabile 'steatosis_yesno'
+print(percentuale_steatosis_yesno)
+# Il 65.48% dei soggetti non ha steatosi epatica (0)
+# Il 34.52% dei soggetti ha steatosi epatica (1)
+
+# Visualizza le percentuali per la variabile 'fibrosis_greater_40_percent'
+print(percentuale_fibrosis_greater_40_percent)
+# L'87.82% dei casi non ha fibrosi epatica maggiore del 40% (0)
+# Il 12.18% dei casi ha fibrosi epatica maggiore del 40% (1)
+
+# Visualizza le percentuali per la variabile 'vital_status'
+print(percentuale_vital_status)
+# Il 45.69% dei soggetti è deceduto (0)
+# Il 54.31% dei soggetti è ancora in vita (1)
+
+# Visualizza le percentuali per la variabile 'progression_or_recurrence'
+print(percentuale_progression_or_recurrence)
+# Il 33.50% dei soggetti non ha avuto progressione o recidiva (0)
+# Il 66.50% dei soggetti ha avuto progressione o recidiva (1)
+
+# Visualizza le percentuali per la variabile 'progression_or_recurrence_liveronly'
+print(percentuale_progression_or_recurrence_liveronly)
+# Il 58.88% dei casi non ha avuto progressione o recidiva limitata al fegato (0)
+# Il 41.12% dei casi ha avuto progressione o recidiva limitata al fegato (1)
+
+# Visualizza le percentuali per la variabile "vital_satus_DFS"
+print(percentuale_vital_status_DFS)
+# Il 29.84% dei soggetti non è deceduto durante il periodo libero da malattia primaria (0)
+# Il 70% dei soggetti è deceduto durante il periodo libero da malattia primaria (1)
+
+# Visualizza le percentuali per la variabile 'vital_status_liver_DFS'
+print(percentuale_vital_status_liver_DFS)
+# Il 38.07% degli individui non è deceduto durante il periodo libero da malattia secondaria (0)
+# Il 61.93% degli individui è deceduto durante il periodo libero da malattia secondaria (1)
+
+
+
+
+
+# "Test esatto di Fisher per le Associazioni tra Variabili Categoriali"
+
+# Lista delle variabili categoriali
+variabili_categoriali <- c("sex", "major_comorbidity", "node_positive_primary", 
+                           "synchronous_crlm", "multiple_metastases", "clinrisk_stratified",
+                           "extrahep_disease", "chemo_before_liver_resection", 
+                           "steatosis_yesno", "fibrosis_greater_40_percent",
+                           "vital_status", "progression_or_recurrence",
+                           "progression_or_recurrence_liveronly", "vital_status_liver_DFS",
+                           "vital_status_DFS")
+
+# Esegui il test esatto di Fisher per tutte le combinazioni di coppie di variabili
+risultati_fisher <- list()
+for (i in 1:(length(variabili_categoriali) - 1)) {
+  for (j in (i+1):length(variabili_categoriali)) {
+    variabile1 <- variabili_categoriali[i]
+    variabile2 <- variabili_categoriali[j]
+    
+    # Crea la tabella di contingenza
+    tabella_contingenza <- table(Kcolon[[variabile1]], Kcolon[[variabile2]])
+    
+    # Esegui il test di Fisher
+    fisher_test <- fisher.test(tabella_contingenza)
+    
+    # Salva i risultati
+    risultati_fisher[[paste(variabile1, variabile2, sep = "_vs_")]] <- fisher_test
+  }
+}
+
+# Stampare i risultati
+for (nome_test in names(risultati_fisher)) {
+  cat("Test:", nome_test, "\n")
+  print(risultati_fisher[[nome_test]])
+  cat("\n")
+}
+
+# Node_positive_primary vs. Extrahep_disease:
+# Il p-value (0.0178) indica che c'è un'associazione significativa tra queste due variabili.
+# L'intervallo di confidenza per l'odds ratio (0.726, 7.044) suggerisce che il rischio di avere noduli primari postivi è significativamente associato al rischio di avere malattia extraepatica.
+
+# Node_positive_primary vs. Chemo_before_liver_resection:
+# Il p-value (0.2198) non suggerisce un'associazione significativa tra queste due variabili.
+
+# Node_positive_primary vs. Altre variabili:
+# Non emerge un'associazione significativa tra la variabile node_positive_primary e le altre variabili.
+
+# Synchronous_crlm vs. Altre variabili:
+# Synchronous_crlm mostra un'associazione significativa con multiple_metastases (p-value = 0.00222) e clinrisk_stratified (p-value = 2.183e-05), come indicato dai bassi valori di p-value.
+# Cioò significa che le variabili rischio stratificato (alto/basso) è asscoato alla presenza multipla di metastasi e di metastasi epatiche colorettali sincrone.
+
+# Multiple_metastases vs. Altre variabili:
+# Come già visto la variabile multiple_metastases è significativamente associato con la variabile clinrisk_stratified (p-value = 7.302e-10) e con synchronous_crlm (p=0.00222).
+
+# Clinrisk_stratified vs. Altre variabili:
+# Come già notato la variabile clinrisk_stratified mostra associazioni significative con synchronous_crlm (p-value = 2.183e-05) e multiple_metastases (p-value = 7.302e-10).
+
+# Extrahep_disease vs. Altre variabili:
+# Extrahep_disease mostra un'associazione significativa con la variabile chemo_before_liver_resection (p-value = 0.0001131),
+# indicando che la malattia esxtretica e la chemio prima dell'intervento chirugico epatico hanno una forte relazione.
+
+# Chemo_before_liver_resection vs. Altre variabili:
+# Chemo_before_liver_resection mostra associazioni significative con la variabile fibrosis_greater_40_percent (p-value = 0.001231).
+# Questo suggerisce che i pazienti che hanno ricevuto chemioterapia prima della resezione epatica sono più propensi ad avere una fibrosi maggiore del 40%.
+
+# Steatosis_yesno vs. Altre variabili:
+# Non emergono associazioni significative con altre variabili per la steatosi.
+
+# Fibrosis_greater_40_percent vs. Altre variabili:
+# Fibrosis_greater_40_percent mostra associazioni significative con la variabile vital_status (p-value = 0.01474).
+# Indica che il grado di fibrosi maggiore del 40% è correlato allo stato vitale del paziente, suggerendo che una fibrosi più avanzata potrebbe influenzare la sopravvivenza del paziente.
+
+# Vital_status vs. Altre variabili:
+# Vital_status mostra associazioni significative con varie altre variabili nel dataset.
+
+# Progression_or_recurrence vs. Altre variabili:
+# Progression_or_recurrence mostra un'associazione significativa con vital_status (p-value < 2.2e-16).
+# All'aumentare della regressione primaria, diminuisce la probabilità di sopravvivenza.
+
+# Progression_or_recurrence_liveronly vs. Altre variabili:
+# Progression_or_recurrence_liveronly mostra associazioni significative con vital_status (p-value = 8.366e-11).
+# All'aumentare della regressione secondaria, diminuisce la probabilità di sopravvivenza.
+
+# Vital_status_liver_DFS vs. Altre variabili:
+# Vital_status_liver_DFS mostra associazioni significative con vital_status (p-value < 2.2e-16).
+
+# Vital_status_DFS vs. Altre variabili:
+# Vital_status_DFS mostra associazioni significative con vital_status (p-value < 2.2e-16).
+
+
+
+
+
+# "Analisi di Regressione Logistica e Grafico dei Coefficienti"
+
+# Esegui l'analisi di regressione logistica
+model <- glm(vital_status ~ sex + major_comorbidity + node_positive_primary + 
+               synchronous_crlm + multiple_metastases + clinrisk_stratified + 
+               extrahep_disease + chemo_before_liver_resection + 
+               steatosis_yesno + fibrosis_greater_40_percent + 
+               progression_or_recurrence + progression_or_recurrence_liveronly + 
+               vital_status_liver_DFS + vital_status_DFS, 
+             family = binomial, data = Kcolon)
+
+# Estrai i coefficienti del modello
+tidy_model <- broom::tidy(model)
+
+# Mostra un riassunto del modello
+summary(model)
+
+# Visualizza un grafico del modello
+ggplot(tidy_model, aes(x = term, y = estimate, fill = abs(estimate))) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  scale_fill_gradient(low = "skyblue", high = "orange") +
+  theme_minimal() +
+  labs(x = "Coefficient", y = "Statistical estimation") +
+  ggtitle("Logistic regression coefficient") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# 1. Intercept (Intercetta):
+#    - Il coefficiente stimato è -21.57290 con uno std. error di 2066.15751 e un z value di -0.010.
+#    - Il p-value associato è 0.9917, indicando che l'intercetta non è significativamente diversa da zero.
+
+# 2. sex:
+#    - Il coefficiente stimato è -0.09309 con uno std. error di 0.65838 e un z value di -0.141.
+#    - Il p-value associato è 0.8876, indicando che non vi è evidenza di un'associazione significativa tra il sesso e lo stato vitale.
+
+# 3. major_comorbidity:
+#    - Il coefficiente stimato è -0.87297 con uno std. error di 0.67985 e un z value di -1.284.
+#    - Il p-value associato è 0.1991, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 4. node_positive_primary:
+#    - Il coefficiente stimato è 1.32778 con uno std. error di 0.80805 e un z value di 1.643.
+#    - Il p-value associato è 0.1003, indicando una tendenza verso l'associazione significativa tra questa variabile e lo stato vitale, ma il risultato non è statisticamente significativo al livello di significatività del 5%.
+
+# 5. synchronous_crlm:
+#    - Il coefficiente stimato è -1.10018 con uno std. error di 0.81142 e un z value di -1.356.
+#    - Il p-value associato è 0.1751, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 6. multiple_metastases:
+#    - Il coefficiente stimato è 1.43531 con uno std. error di 0.72790 e un z value di 1.972.
+#    - Il p-value associato è 0.0486, indicando che vi è un'associazione significativa tra questa variabile e lo stato vitale al livello di significatività del 5%.
+
+# 7. clinrisk_stratified:
+#    - Il coefficiente stimato è -0.13547 con uno std. error di 0.28341 e un z value di -0.478.
+#    - Il p-value associato è 0.6327, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 8. extrahep_disease:
+#    - Il coefficiente stimato è -1.14222 con uno std. error di 1.06388 e un z value di -1.074.
+#    - Il p-value associato è 0.2830, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 9. chemo_before_liver_resection:
+#    - Il coefficiente stimato è 0.33733 con uno std. error di 0.79082 e un z value di 0.427.
+#    - Il p-value associato è 0.6697, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 10. steatosis_yesno:
+#     - Il coefficiente stimato è 1.47230 con uno std. error di 0.90426 e un z value di 1.628.
+#     - Il p-value associato è 0.1035, indicando una tendenza verso l'associazione significativa tra questa variabile e lo stato vitale, ma il risultato non è statisticamente significativo al livello di significatività del 5%.
+
+# Ecco i risultati dell'analisi di regressione logistica:
+
+# 11. fibrosis_greater_40_percent1:
+#     - Il coefficiente stimato è -1.93000 con uno std. error di 1.16461 e un z value di -1.657.
+#     - Il p-value associato è 0.0975, indicando una tendenza verso un'associazione significativa tra questa variabile e lo stato vitale, ma il risultato non è statisticamente significativo al livello di significatività del 5%.
+
+# 12. progression_or_recurrence:
+#     - Il coefficiente stimato è 0.13202 con uno std. error di 6756.19480 e un z value di 0.000.
+#     - Il p-value associato è 1.0000, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 13. progression_or_recurrence_liveronly:
+#     - Il coefficiente stimato è -19.59960 con uno std. error di 2781.67852 e un z value di -0.007.
+#     - Il p-value associato è 0.9944, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 14. vital_status_liver_DFS:
+#     - Il coefficiente stimato è 42.63505 con uno std. error di 4807.36796 e un z value di 0.009.
+#     - Il p-value associato è 0.9929, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+# 15. vital_status_DFS:
+#     - Il coefficiente stimato è -0.25649 con uno std. error di 8080.11278 e un z value di 0.000.
+#     - Il p-value associato è 1.0000, indicando che non vi è evidenza di un'associazione significativa tra questa variabile e lo stato vitale.
+
+
+
+
+
+#### Analisi di Sopravvivenza: Esplorazione Statistica della durata della Vita dei pazienti
+
+## Fisso delle ipotesi
+
+# Ipotesi per i fattori di rischio di minore sopravvivenza nel cancro al colon
+
+# Età
+H0_eta <- "Non vi è un aumento significativo del rischio di mortalità correlato al cancro al colon all'aumentare dell'età."
+H1_eta <- "Vi è un aumento significativo del rischio di mortalità correlato al cancro al colon con l'avanzare dell'età."
+
+# Sesso
+H0_sesso <- "Il rischio di mortalità correlato al cancro al colon non è significativamente diverso tra i sessi maschile e femminile."
+H1_sesso <- "Il rischio di mortalità correlato al cancro al colon è significativamente maggiore negli uomini rispetto alle donne."
+
+# Comorbilità maggiore
+H0_comorb <- "La presenza di comorbilità non aumenta significativamente il rischio di mortalità correlato al cancro al colon."
+H1_comorb <- "La presenza di comorbilità significative è associata a un significativo aumento del rischio di mortalità correlato al cancro al colon."
+
+# Indice di massa corporea (BMI)
+H0_bmi <- "Non vi è un significativo aumento del rischio di mortalità correlato al cancro al colon con l'aumentare dell'indice di massa corporea (BMI)."
+H1_bmi <- "Vi è un significativo aumento del rischio di mortalità correlato al cancro al colon all'aumentare dell'indice di massa corporea (BMI)."
+
+# Steatosi epatica
+H0_steatosi <- "La presenza di steatosi epatica non è significativamente associata al rischio di mortalità correlato al cancro al colon."
+H1_steatosi <- "La presenza di steatosi epatica è significativamente associata a un aumento del rischio di mortalità correlato al cancro al colon."
+
+# Linfonodi positivi primari
+H0_linfonodi <- "La presenza di linfonodi positivi primari non influisce sulla sopravvivenza nel cancro al colon."
+H1_linfonodi <- "La presenza di linfonodi positivi primari è associata a una minore sopravvivenza nel cancro al colon."
+
+# Metastasi sincrone
+H0_metastasi <- "La presenza di metastasi sincrone non influisce sulla sopravvivenza nel cancro al colon."
+H1_metastasi <- "La presenza di metastasi sincrone è associata a una minore sopravvivenza nel cancro al colon."
+
+# Metastasi multiple
+H0_metastasi_multipla <- "La presenza di metastasi multiple non influisce sulla sopravvivenza nel cancro al colon."
+H1_metastasi_multipla <- "La presenza di metastasi multiple è associata a una minore sopravvivenza nel cancro al colon."
+
+# Dimensione massima del tumore
+H0_dimensione_tumore <- "La dimensione massima del tumore non influisce sulla sopravvivenza nel cancro al colon."
+H1_dimensione_tumore <- "Una maggiore dimensione del tumore è associata a una minore sopravvivenza nel cancro al colon."
+
+# Presenza di malattia extraepatica
+H0_malattia_extraepatica <- "La presenza di malattia extraepatica non influisce sulla sopravvivenza nel cancro al colon."
+H1_malattia_extraepatica <- "La presenza di malattia extraepatica è associata a una minore sopravvivenza nel cancro al colon."
+
+# Percentuale di fibrosi maggiore del 40%
+H0_fibrosi <- "La presenza di una percentuale di fibrosi maggiore del 40% non influisce sulla sopravvivenza nel cancro al colon."
+H1_fibrosi <- "Una percentuale di fibrosi maggiore del 40% è associata a una minore sopravvivenza nel cancro al colon."
+
+# Percentuale di mucina
+H0_mucina <- "La percentuale di mucina non influisce sulla sopravvivenza nel cancro al colon."
+H1_mucina <- "Una maggiore percentuale di mucina è associata a una minore sopravvivenza nel cancro al colon."
+
+# Ipotesi per necrosis_percent
+H0_necrosis_percent <- "La percentuale di necrosi nei tumori non influisce sulla sopravvivenza nel cancro al colon."
+H1_necrosis_percent <- "Una maggiore percentuale di necrosi nei tumori è associata a una minore sopravvivenza nel cancro al colon."
+
+"Ipotesi di ricerca per le variabili cliniche nel cancro al colon e nel cancro al retto-colon"
+
+# Ipotesi per clinrisk_stratified
+H0_clinrisk_stratified <- "Non c'è differenza significativa nel rischio di mortalità tra i pazienti classificati nelle categorie a rischio maggiore (valori 3, 4, 5) e quelli nelle categorie a rischio più basso (valori 0, 1, 2)."
+H1_clinrisk_stratified <- "Il rischio di mortalità varia tra i pazienti in base alle categorie di rischio, con differenze significative tra coloro classificati nelle categorie a rischio maggiore e quelli a rischio più basso."
+
+# Ipotesi per total_response_percent
+H0_total_response_percent <- "Non c'è associazione significativa tra la percentuale di risposta totale al trattamento e la sopravvivenza nel cancro al colon."
+H1_total_response_percent <- "Una maggiore percentuale di risposta totale al trattamento è associata a una maggiore sopravvivenza nel cancro al colon."
+
+# Ipotesi per progression_or_recurrence
+H0_progression_or_recurrence <- "Non c'è associazione significativa tra la progressione o la ricorrenza del tumore primario e la sopravvivenza nel cancro al colon."
+H1_progression_or_recurrence <- "La progressione o la ricorrenza del tumore primario è associata a una minore sopravvivenza nel cancro al colon."
+
+# Ipotesi per progression_or_recurrence_liveronly
+H0_progression_or_recurrence_liveronly <- "Non c'è associazione significativa tra la progressione o la ricorrenza del tumore secondario e la sopravvivenza nel cancro al colon."
+H1_progression_or_recurrence_liveronly <- "La progressione o la ricorrenza del tumore secondario è associata a una minore sopravvivenza nel cancro al colon."
+
+# Ipotesi per months_to_DFS_progression
+H0_months_to_DFS_progression <- "Non c'è associazione significativa tra il tempo di sopravvivenza libera da malattia primaria e la sopravvivenza complessiva nel cancro al colon."
+H1_months_to_DFS_progression <- "Un periodo più lungo di sopravvivenza libera da malattia primaria è associato a una maggiore sopravvivenza nel cancro al colon."
+
+# Ipotesi per months_to_liver_DFS_progression
+H0_months_to_liver_DFS_progression <- "Non c'è associazione significativa tra il tempo di sopravvivenza libera da malattia secondatia e la sopravvivenza complessiva nel cancro al colon."
+H1_months_to_liver_DFS_progression <- "Un tempo più lungo di sopravvivenza libera da malattia secondaria è associato a una maggiore sopravvivenza nel cancro al colon."
+
+
+# All'interno di questa analisi Il test di Log-Rank è stato utilizzato per valutare l'associazione tra le variabili quantitative e la sopravvivenza dei pazienti, 
+# le variabili categoriali ed i mesi di sopravvivenza. 
+# Questo test ha permesso di determinare se esistono differenze significative nella sopravvivenza dei pazienti in relazione a tutto il gruppo di variabili. 
+
+# Log-Rank variabili quantitative
+
+install.packages("survminer")
+library(survminer)
+library(ggpubr)
+install.packages("survival")
+library(survival)
+
+# Esegui il test di log-rank utilizzando le categorie definite per le variabili quantitative
+log_rank_test_age <- survdiff(Surv(overall_survival_months) ~ age, data = Kcolon)
+log_rank_test_bmi <- survdiff(Surv(overall_survival_months) ~ body_mass_index, data = Kcolon)
+log_rank_test_tumor <- survdiff(Surv(overall_survival_months) ~ max_tumor_size, data = Kcolon)
+log_rank_test_response <- survdiff(Surv(overall_survival_months) ~ total_response_percent, data = Kcolon)
+log_rank_test_necrosis <- survdiff(Surv(overall_survival_months) ~ necrosis_percent, data = Kcolon)
+log_rank_test_mucin <- survdiff(Surv(overall_survival_months) ~ mucin_percent, data = Kcolon)
+log_rank_test_survival <- survdiff(Surv(overall_survival_months) ~ overall_survival_months, data = Kcolon)
+log_rank_test_dfs <- survdiff(Surv(overall_survival_months) ~ months_to_DFS_progression, data = Kcolon)
+log_rank_test_liver_dfs <- survdiff(Surv(overall_survival_months) ~ months_to_liver_DFS_progression, data = Kcolon)
+
+# Stampa i risultati dei test
+print(log_rank_test_age)
+print(log_rank_test_bmi)
+print(log_rank_test_tumor)
+print(log_rank_test_response)
+print(log_rank_test_necrosis)
+print(log_rank_test_mucin)
+print(log_rank_test_survival)
+print(log_rank_test_dfs)
+print(log_rank_test_liver_dfs)
+
+# Età (Age): la variabile età mostra un'associazione significativa con la sopravvivenza (p < 2e-16), il che suggerisce che l'età influisce sul rischio di mortalità.
+
+# Indice di massa corporea (BMI): anche il BMI mostra un'associazione significativa con la sopravvivenza (p < 2e-16), indicando che il peso corporeo influisce sul rischio di mortalità.
+
+# Dimensione massima del tumore (Max Tumor Size): la dimensione massima del tumore è significativamente associata alla sopravvivenza (p < 2e-16), suggerendo che tumori più grandi possono aumentare il rischio di mortalità.
+
+# Percentuale di risposta totale (Total Response Percent): non c'è un'associazione significativa tra la percentuale di risposta totale e la sopravvivenza (p = 0.9).
+
+# Percentuale di necrosi (Necrosis Percent): anche la percentuale di necrosi non mostra un'associazione significativa con la sopravvivenza (p = 0.7).
+
+# Percentuale di muco (Mucin Percent): la percentuale di muco mostra un'associazione significativa con la sopravvivenza (p = 2e-07), suggerendo che il muco può influenzare il rischio di mortalità.
+
+# Sopravvivenza complessiva in mesi (Overall Survival Months): questa variabile è ovviamente fortemente associata alla sopravvivenza (p < 2e-16), confermando che i mesi di sopravvivenza sono influenzati da molteplici fattori.
+
+# Mesi liberi da malattia primaria fino alla progressione (Months to DFS Progression): anche questa variabile mostra un'associazione significativa con la sopravvivenza (p < 2e-16), indicando che il tempo fino alla progressione della malattia influisce sulla sopravvivenza.
+
+# Mesi liberi da malattia secondaria fino alla progressione (Months to Liver DFS Progression): anche questa variabile è significativamente associata alla sopravvivenza (p < 2e-16), suggerendo che il tempo fino alla progressione della malattia epatica influisce sulla sopravvivenza.
+
+
+# Log-Rank variavili categoriali
+
+# Lista delle variabili categoriali
+variabili_categoriali <- c("sex", "major_comorbidity", "node_positive_primary", 
+                           "synchronous_crlm", "multiple_metastases", "clinrisk_stratified", 
+                           "extrahep_disease", "chemo_before_liver_resection", 
+                           "steatosis_yesno", "fibrosis_greater_40_percent", 
+                           "progression_or_recurrence", "progression_or_recurrence_liveronly", 
+                           "vital_status_liver_DFS", "vital_status_DFS", "vital_status")
+
+# Inizializza un vettore per memorizzare i risultati
+risultati_test_log_rank <- vector("list", length(variabili_categoriali))
+
+# Esegui il test di log rank per ogni variabile categorica
+for (i in 1:length(variabili_categoriali)) {
+  risultati_test_log_rank[[i]] <- survdiff(Surv(overall_survival_months) ~ get(variabili_categoriali[i]), data = Kcolon)
+}
+
+# Visualizza i risultati
+names(risultati_test_log_rank) <- variabili_categoriali
+risultati_test_log_rank
+
+# Sex:
+# Il test di log rank mostra che non vi è una differenza significativa nella sopravvivenza tra i due sessi (p = 0.4).
+
+# Major Comorbidity:
+# Il test di log rank suggerisce una tendenza verso una differenza significativa nella sopravvivenza tra i pazienti con e senza comorbilità maggiori (p = 0.06), ma il risultato non è statisticamente significativo al livello di significatività del 5%.
+
+# Node Positive Primary:
+# Non vi è evidenza di una differenza significativa nella sopravvivenza in base allo stato dei linfonodi primari (p = 1).
+
+# Synchronous CRLM:
+# Non vi è una differenza significativa nella sopravvivenza tra i pazienti con e senza metastasi sincrone (p = 0.8).
+
+# Multiple Metastases:
+# Il test di log rank indica che non vi è una differenza significativa nella sopravvivenza tra i pazienti con e senza metastasi multiple (p = 0.3).
+
+# Clinrisk Stratified:
+# Non vi è evidenza di una differenza significativa nella sopravvivenza tra i diversi livelli di stratificazione del rischio clinico (p = 0.1).
+
+# Extrahepatic Disease:
+# Il test suggerisce una differenza significativa nella sopravvivenza tra i pazienti con e senza malattia extraepatica (p = 4e-04), con una maggiore sopravvivenza nei pazienti senza malattia extraepatica.
+
+# Chemo Before Liver Resection:
+# Non vi è evidenza di una differenza significativa nella sopravvivenza tra i pazienti che hanno ricevuto chemioterapia prima della resezione epatica e quelli che non l'hanno ricevuta (p = 0.2).
+
+# Steatosis Yes/No:
+# Il risultato suggerisce una tendenza verso una differenza significativa nella sopravvivenza tra i pazienti con e senza steatosi (p = 0.05), ma il risultato non è statisticamente significativo al livello di significatività del 5%.
+
+# Fibrosis Greater 40 Percent:
+# Non vi è una differenza significativa nella sopravvivenza in base al grado di fibrosi (p = 0.9).
+
+# Progression or Recurrence:
+# Il risultato mostra una differenza significativa nella sopravvivenza tra i pazienti con e senza progressione o recidiva (p = 3e-05), con una peggiore sopravvivenza nei pazienti che hanno sperimentato la progressione o la recidiva.
+
+# Progression or Recurrence Liver Only:
+# Il risultato indica una differenza significativa nella sopravvivenza tra i pazienti con e senza progressione o recidiva solo a livello epatico (p = 3e-05), con una peggiore sopravvivenza nei pazienti con progressione o recidiva epatica.
+
+# Vital Status Liver DFS:
+# Il test mostra un p-value = 1e-12, che contribuisce positivamente alla durata complessiva della sopravvivenza.
+
+# Vital Status DFS:
+# Il test mostra un p-value = 4e-06, che aumenta i mesi totali di sopravvivenza.
+
+# Vital Status:
+# Il test mostra un p-value < 2e-16, che ha un impatto positivo sulla sopravvivenza complessiva.
+
+
+
+
+# La regressione di Cox viene condotta per valutare l'effetto delle variabili predictorie sulla sopravvivenza dei pazienti caffetti da K colorettale. 
+# Questo metodo statistico tiene conto del tempo di osservazione e delle censure dei dati, consentendo di identificare le variabili che influenzano in modo significativo la sopravvivenza dei pazienti.
+
+
+# Lista delle variabili categoriali da convertire in fattori
+categorical_vars <- c("sex", "major_comorbidity", "node_positive_primary",
+                      "synchronous_crlm", "multiple_metastases", 
+                      "clinrisk_stratified", "extrahep_disease", 
+                      "chemo_before_liver_resection", "steatosis_yesno",
+                      "fibrosis_greater_40_percent", "progression_or_recurrence",
+                      "progression_or_recurrence_liveronly", "vital_status_liver_DFS",
+                      "vital_status_DFS", "vital_status")
+
+# Converti le variabili categoriali in fattori
+for (var in categorical_vars) {
+  Kcolon[[var]] <- factor(Kcolon[[var]])
+}
+
+# Assegna numeri da 1 a 197 alla variabile "Patient-ID"
+Kcolon$`Patient-ID` <- 1:197
+
+# Adatta un modello di regressione di Cox
+cox_model1 <- coxph(Surv(overall_survival_months) ~ age + body_mass_index + 
+                      max_tumor_size + total_response_percent + necrosis_percent + 
+                      mucin_percent + months_to_DFS_progression + months_to_liver_DFS_progression + 
+                      node_positive_primary + synchronous_crlm + multiple_metastases + 
+                      clinrisk_stratified + vital_status + extrahep_disease + chemo_before_liver_resection + 
+                      steatosis_yesno + fibrosis_greater_40_percent + progression_or_recurrence + 
+                      progression_or_recurrence_liveronly + vital_status_liver_DFS + 
+                      sex + major_comorbidity + vital_status_DFS,
+                    data = Kcolon)
+
+# Visualizza i risultati del modello
+summary(cox_model1)
+
+
+# Age: Il coefficiente è negativo (-0.015890) e il p-value è significativo (0.0298), indicando che un aumento dell'età è associato a una diminuzione della sopravvivenza complessiva.
+# Body Mass Index: Il coefficiente è prossimo a zero (0.002499) e il p-value non è significativo (0.8898), quindi non c'è evidenza di un'associazione significativa tra BMI e sopravvivenza complessiva.
+# Max Tumor Size: Il coefficiente è negativo (-0.022213) ma il p-value non è significativo (0.5270), indicando che la dimensione massima del tumore potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Total Response Percent: Il coefficiente è positivo (0.352205) ma il p-value non è significativo (0.6808), quindi non c'è evidenza di un'associazione significativa tra percentuale di risposta totale e sopravvivenza complessiva.
+# Necrosis Percent: Il coefficiente è positivo (0.166662) ma il p-value non è significativo (0.8341), indicando che la percentuale di necrosi potrebbe influenzare la sopravvivenza complessiva, ma non in modo statisticamente significativo.
+# Mucin Percent: Il coefficiente è negativo (-0.151099) e il p-value non è significativo (0.8592), quindi non c'è evidenza di un'associazione significativa tra percentuale di mucina e sopravvivenza complessiva.
+
+# Months to DFS Progression: Il coefficiente è negativo (-0.009805) ma il p-value non è significativo (0.2267), indicando che il numero di mesi di sopravvivenza liberi da malattia primaria potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo statisticamente significativo.
+# Months to Liver DFS Progression: Il coefficiente è negativo (-0.070484) e il p-value è altamente significativo (< 2e-16), suggerendo che un aumento del numero di mesi liberi da malattia epatica è fortemente associato a una diminuzione della sopravvivenza complessiva.
+# Node Positive Primary: Il coefficiente è negativo (-0.038690) ma il p-value non è significativo (0.8391), indicando che la presenza di linfonodi positivi al momento della diagnosi potrebbe influenzare la sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Synchronous CRLM: Il coefficiente è negativo (-0.333989) ma il p-value è borderline (0.0645), suggerendo che la presenza di metastasi colorettali sincrone potrebbe avere un impatto sulla sopravvivenza complessiva, ma in modo marginale.
+# Multiple Metastases: Il coefficiente è negativo (-0.030907) e il p-value non è significativo (0.8699), indicando che la presenza di metastasi multiple potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Clinrisk Stratified0: presenta un coefficiente di 0.035737, indicando un aumento del 3.57% nel rischio di evento. Tuttavia, il p-value di 0.8822 suggerisce che questa relazione potrebbe non essere statisticamente significativa.
+
+# Clinrisk Stratified1: mostra un coefficiente di 0.716578, indicando un aumento del 71.66% nel rischio di evento. Il p-value di 0.0108 indica che questa relazione è statisticamente significativa (*).
+
+# Vital Status1: Il coefficiente è positivo (2.896989) e il p-value è altamente significativo (3.33e-11), suggerendo che il cambiamento nello stato vitale è fortemente associato a un aumento del rischio di mortalità, con un'espansione di 18.12 volte del rischio stesso (per ovvie deduzioni).
+# Extrahep Disease1: Il coefficiente è positivo (1.415351) e il p-value è altamente significativo (3.39e-06), indicando che la presenza di malattia extraepatica è fortemente associata a un aumento del rischio di mortalità.
+# Chemo Before Liver Resection1: Il coefficiente è negativo (-0.099897) ma il p-value non è significativo (0.5831), suggerendo che la chemioterapia prima della resezione epatica potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Steatosis Yes No1: Il coefficiente è negativo (-0.386346) e il p-value è significativo (0.0347), indicando che la presenza di steatosi potrebbe influenzare la sopravvivenza complessiva, con un'espansione di 0.679 volte del rischio di mortalità.
+# Fibrosis Greater 40 Percent1: Il coefficiente è negativo (-0.015767) e il p-value non è significativo (0.9740), suggerendo che la presenza di fibrosi maggiore del 40% potrebbe influenzare la sopravvivenza complessiva, ma non in modo statisticamente significativo.
+# Progression or Recurrence1: Il coefficiente è negativo (-0.400710) ma il p-value non è significativo (0.4241), indicando che la progressione o la ricorrenza della malattia potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Progression or Recurrence Liver Only1: Il coefficiente è negativo (-2.963285) e il p-value è altamente significativo (1.19e-15), suggerendo che la progressione o la ricorrenza della malattia solo nel fegato è fortemente associata a un aumento del rischio di mortalità.
+# Vital Status Liver DFS1: il coefficiente negativo (-2.574179) indica che c'è un'associazione inversa tra questo stato vitale e la sopravvivenza complessiva, e il p-value altamente significativo (2.40e-05) conferma che questa associazione è statisticamente significativa.
+# Sex2: Il coefficiente è negativo (-0.105931) ma il p-value non è significativo (0.5555), suggerendo che il genere femminile potrebbe influenzare la sopravvivenza complessiva, ma non in modo statisticamente significativo.
+
+# Major Comorbidity1: Il coefficiente è positivo (0.456961) e il p-value è significativo (0.0129), indicando che la presenza di comorbilità maggiori potrebbe influenzare la sopravvivenza complessiva.
+# Vital Status DFS1:  In questo contesto, il coefficiente negativo (-0.309135) indica che c'è un'associazione inversa tra questo stato vitale e la sopravvivenza complessiva, ma il p-value non è significativo (0.6330), quindi non c'è abbastanza evidenza per affermare che questa relazione sia statisticamente significativa.
+
+# Complessivamente, il modello ha un'alta concordanza (0.901), suggerendo una buona capacità predittiva.
+
+
+
+"Test di Wald nel Modello di Regressione di Cox: Valutazione dell'Importanza delle Variabili"
+
+# Otteniamo i risultati del modello di regressione di Cox
+risultati_modello <- summary(cox_model1)
+
+# Estraiamo i coefficienti stimati e i loro errori standard
+coefficienti <- risultati_modello$coefficients[, 1]
+errori_standard <- risultati_modello$coefficients[, 2]
+
+# Calcoliamo i test di Wald per ciascuna covariata
+wald_test <- (coefficienti / errori_standard)^2
+
+# Calcoliamo i p-value corrispondenti utilizzando la distribuzione chi-quadro
+p_value <- pchisq(wald_test, df = 1, lower.tail = FALSE)
+
+# Visualizziamo i risultati del test di Wald
+risultati_wald <- data.frame(Covariata = rownames(risultati_modello$coefficients),
+                             Coefficiente = coefficienti,
+                             Errore_Standard = errori_standard,
+                             Test_Wald = wald_test,
+                             P_Value = p_value)
+print(risultati_wald)
+
+# Associazioni significative:
+
+# Total Response Percent (Percentuale di risposta totale): Coefficiente positivo significativo (0.3522) e p-value (0.0613).
+# Necrosis Percent (Percentuale di necrosi): Coefficiente positivo significativo (0.1667) e p-value (0.0199).
+# Multiple Metastases (Metastasi multiple): Coefficiente negativo significativo (-0.0309) e p-value (0.0010).
+# Clinrisk Stratified (Stratificazione del rischio clinico): Coefficiente positivo significativo per il gruppo ad alto rischio (0.7166) e p-value (0.1225).
+# Vital Status DFS (Stato vitale in relazione alla sopravvivenza libera da malattia): Coefficiente negativo significativo (-0.3091) e p-value (0.6330).
+# Vital Status Liver DFS (Stato vitale durante la sopravvivenza libera da malattia epatica): Coefficiente negativo significativo (-2.5742) e p-value (4.6511e-250).
+
+
+" Test di adattamento di Schoenfeld e calcolo di Cox-Snel"
+
+# Questi test sono utilizzati per valutare l'adattamento del modello di regressione di Cox ai dati e la sua capacità predittiva.
+# Il test di adattamento di Schoenfeld verifica l'ipotesi di proporzionalità degli hazard nel tempo.
+# Il valore di Cox-Snell fornisce una misura della capacità predittiva del modello di regressione di Cox.
+
+
+# Esegui il test di adattamento di Schoenfeld
+schoenfeld_test <- cox.zph(cox_model1)
+
+# Visualizza i risultati del test di adattamento di Schoenfeld
+print(schoenfeld_test)
+
+# Age: Il test di Schoenfeld mostra una statistica del chi-quadrato di 5.8142 con un p-value di 0.016, indicando che l'età ha un effetto significativo sulla sopravvivenza complessiva.
+# Body Mass Index: Il test  indica una statistica del chi-quadrato di 4.7738 con un p-value di 0.029, suggerendo che il BMI ha un effetto significativo sulla sopravvivenza complessiva.
+# Max Tumor Size: Il risultato finale evidenzia una statistica del chi-quadrato di 1.1023 con un p-value di 0.294, indicando che la dimensione massima del tumore non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Total Response Percent: Il test suggerisce una statistica del chi-quadrato di 9.5899 con un p-value di 0.002, suggerendo che la percentuale di risposta totale ha un effetto significativo sulla sopravvivenza complessiva.
+# Necrosis Percent: Il test di Schoenfeld mostra una statistica del chi-quadrato di 3.2058 con un p-value di 0.073, indicando che la percentuale di necrosi potrebbe avere un effetto sulla sopravvivenza complessiva, ma non in modo significativo.
+# Mucin Percent: Il risultato di Schoenfeld segnala una statistica del chi-quadrato di 1.0296 con un p-value di 0.310, suggerendo che la percentuale di mucina non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Months to DFS Progression: Il risultato mostra una statistica del chi-quadrato di 33.0011 con un p-value < 0.001, indicando che il tempo libero da malattia prima della progressione della malattia primaria ha un forte effetto sulla sopravvivenza complessiva.
+# Months to Liver DFS Progression: Il test indica una statistica del chi-quadrato di 54.3118 con un p-value < 0.001, suggerendo che il tempo libero da malattia prima della progressione della malattia epatica ha un forte effetto sulla sopravvivenza complessiva.
+# Node Positive Primary: Il test di Schoenfeld evidenzia una statistica del chi-quadrato di 0.4304 con un p-value di 0.512, indicando che la presenza di linfonodi positivi al momento della diagnosi non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Synchronous CRLM: Il test di Schoenfeld rileva una statistica del chi-quadrato di 1.1091 con un p-value di 0.292, suggerendo che la presenza di metastasi colorettali sincrone non ha un effetto significativo sulla sopravvivenza complessiva.
+# Multiple Metastases: Il  espone una statistica del chi-quadrato di 0.1503 con un p-value di 0.698, indicando che la presenza di metastasi multiple non ha un effetto significativo sulla sopravvivenza complessiva.
+# Clinrisk Stratified: Il risultato di Schoenfeld mostra una statistica del chi-quadrato di 1.2072 con un p-value di 0.547, suggerendo che la stratificazione del rischio non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Vital Status: Il risultato espone una statistica del chi-quadrato di 2.7339 con un p-value di 0.098, indicando che lo stato vitale non ha un effetto significativo sulla sopravvivenza complessiva.
+# Extrahep Disease: Il test di Schoenfeld mostra una statistica del chi-quadrato di 1.2709 con un p-value di 0.260, suggerendo che la presenza di malattia extraepatica non ha un effetto significativo sulla sopravvivenza complessiva.
+# Chemo Before Liver Resection: Il test indica una statistica del chi-quadrato di 2.4195 con un p-value di 0.120, indicando che la chemioterapia prima della resezione epatica non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Steatosis Yes No: Il test di Schoenfeld espone una statistica del chi-quadrato di 0.0233 con un p-value di 0.879, suggerendo che la presenza di steatosi non ha un effetto significativo sulla sopravvivenza complessiva.
+# Fibrosis Greater 40 Percent: Il risultato indica una statistica del chi-quadrato di 2.4842 con un p-value di 0.115, indicando che la presenza di fibrosi maggiore del 40% non ha un effetto significativo sulla sopravvivenza complessiva.
+# Progression or Recurrence: Il risultato finale mostra una statistica del chi-quadrato di 34.4826 con un p-value < 0.001, suggerendo che la progressione o la ricorrenza della malattia ha un forte effetto sulla sopravvivenza complessiva.
+
+# Progression or Recurrence Liver Only: Il test suggerisce una statistica del chi-quadrato di 77.0615 con un p-value < 0.001, indicando che la progressione o la ricorrenza della malattia solo nel fegato ha un forte effetto sulla sopravvivenza complessiva.
+# Vital Status Liver DFS: Il risultato finale mostra una statistica del chi-quadrato di 25.2791 con un p-value < 0.001, suggerendo che lo stato vitale duante il tempo libero da malattia secondaria ha un forte effetto sulla sopravvivenza complessiva.
+# Sex: Il test di Schoenfeld evidenzia una statistica del chi-quadrato di 0.0349 con un p-value di 0.852, indicando che il sesso non ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Major Comorbidity: Il risultato finale indica una statistica del chi-quadrato di 1.0694 con un p-value di 0.301, suggerendo che la presenza di comorbilità maggiori non ha un effetto significativo sulla sopravvivenza complessiva.
+# Vital Status DFS: Il test suggerisce una statistica del chi-quadrato di 24.4840 con un p-value < 0.001, indicando che lo stato vitale durante il tempo libero da malattia primaria ha un forte effetto sulla sopravvivenza complessiva.
+
+# GLOBAL: Il test di Schoenfeld mostra una statistica del chi-quadrato di 154.8134 con 24 gradi di libertà e un p-value < 0.001, suggerendo che almeno una variabile nel modello ha un effetto significativo sulla sopravvivenza complessiva.
+
+# Le seguenti variabili evidenziano una possibile violazione dell'assunzione di proporzionalità degli hazard nel modello di regressione di Cox:
+
+# - body_mass_index (p= 0.029): l’effetto body_mass_index sulla sopravvivenza può variare nel tempo
+# - total_response_percent (p = 0.002): l'effetto di total_response_percent sulla sopravvivenza può variare nel tempo.
+# - months_to_DFS_progression (p = 9.2e-09): l'effetto di months_to_DFS_progression sulla sopravvivenza può variare nel tempo.
+# - months_to_liver_DFS_progression (p = 1.7e-13): l'effetto di months_to_liver_DFS_progression sulla sopravvivenza può variare nel tempo.
+# - extrahep_disease1(p=0.260): l’effetto di Extrahep Disease1 sulla sopravvivenza può variare nel tempo.
+# - steatosis_yesno (p = 0.879): l’effetto di Steatosis Yes No1 sulla sopravvivenza può variare nel tempo.
+# - major_comorbility (p = 0.301): l’effetto di Major comorbility1 sulla sopravvivenza puà variare nel tempo
+# - progression_or_recurrence (p = 4.3e-09): l'effetto di progression_or_recurrence sulla sopravvivenza può variare nel tempo.
+# - progression_or_recurrence_liveronly (p < 2e-16): l'effetto di progression_or_recurrence_liveronly sulla sopravvivenza può variare nel tempo in modo significativo.
+# - vital_status_liver_DFS (p = 5.0e-07): l'effetto di vital_status_liver_DFS sulla sopravvivenza può variare nel tempo.
+# - vital_status_DFS (p = 7.5e-07): l'effetto di vital_status_DFS sulla sopravvivenza può variare nel tempo.
+
+
+"Modello di Cox-Snell per la Sopravvivenza: Analisi dei Fattori di Rischio Temporali"
+
+# Ottieni le previsioni dei tempi di sopravvivenza per il primo modello Cox
+previsioni_modello1 <- predict(cox_model1, type = "survival")
+
+# Stampa le previsioni del primo modello Cox
+print(previsioni_modello1)
+
+# Calcola le previsioni di Cox-Snell per il tuo modello
+cox_snell <- -log(-log(previsioni_modello1))
+
+# Crea un Plot Cox-Snell 
+plot(cox_snell, pch = 16, col = "blue", xlab = "Observation", ylab = "Cox-Snell")
+title("Trend of Cox-Snell estimation")
+
+# Aggiungi la linea teorica
+lines(sort(cox_snell), col = "red")
+
+# Aggiungi una legenda
+legend("bottomright", legend = "Model", col = "blue", pch = 16)
+
+# Il grafico Cox-Snell, visualizza l'andamento dei residui parziali del modello di regressione di Cox. 
+# I punti blu, principalmente allineati lungo l'asse x con una dispersione verso l'alto, indicano che i residui seguono una distribuzione uniforme intorno allo zero. 
+# Ciò suggerisce che il modello si adatta bene ai dati e che non ci sono discrepanze significative tra i valori osservati e quelli previsti dal modello. 
+# La retta rossa, che segue l'andamento dei punti blu, conferma ulteriormente che il modello è appropriato e che i residui sono distribuiti in modo coerente. 
+# In conclusione, il grafico Cox-Snell supporta l'adeguatezza del modello di regressione di Cox nell'analisi dei dati.
+
+
+
+
+
+#### "Analisi di Sopravvivenza con le Curve di Kaplan-Meier in R"
+
+"Curva di Sopravvivenza di Kaplan-Meier per l'analisi dei mesi di popravvivenza e dello stato Vitale"
+
+# Calcola l'analisi di sopravvivenza Kaplan-Meier per ciascuna categoria della variabile binaria "vital_Status"
+km_fit <- survfit(Surv(overall_survival_months) ~ vital_status, data = Kcolon)
+
+# Visualizza il grafico Kaplan-Meier con legenda
+plot(km_fit, col = c("blue", "red"), main = "Kaplan-Meier Overall Survival Curve", xlab = "Overall Survival Months", ylab = "Survival Probability")
+legend("topright", legend = c("Alive", "Dead"), col = c("blue", "red"), lty = 1)
+
+# Calcola e visualizza l'output numerico
+summary_km <- summary(km_fit)
+print(summary_km)
+
+# Il 42% dei pazienti inclusi nello studio è deceduto a causa della malattia, mentre il restante 58% è sopravvissuto.
+# La media di sopravvivenza complessiva dei pazienti è stata di 46 mesi, con una deviazione standard di 22 mesi. Questo suggerisce una variazione significativa nella sopravvivenza tra i pazienti.
+
+# Dal grafico, inizialmente si osserva che entrambe le curve partono da valori elevati = 1 sull'asse delle Y, indicando una probabilità molto alta di sopravvivenza all'inizio dell'osservazione, quindi a 0 mesi. 
+# Questo suggerisce che la maggior parte dei soggetti è sopravvissuta per almeno un breve periodo dal momento dell'osservazione iniziale.
+# Tuttavia, nel corso del tempo, si osserva una diminuzione graduale della sopravvivenza, come indicato dal declino delle curve verso valori di probabilità di sopravvivenza inferiori.
+# La curva dei soggetti vivi (blu) sembra estendersi oltre il periodo di osservazione, suggerendo che alcuni soggetti rimangano vivi tanto a lungo. 
+# D'altra parte, la curva dei soggetti deceduti (rossa) indica che tutti i soggetti sono deceduti entro il periodo di osservazione.
+# La presenza di uno spazio tra le due curve suggerisce che la probabilità di sopravvivenza dei soggetti deceduti è diminuita più rapidamente nel tempo rispetto a quella dei soggetti vivi. 
+
+# Grafico Sopravvivenza Pazienti con il Kcolon
+
+# Trasformazione di Patient-ID da 1 a 197
+Kcolon$Patient_ID <- 1:nrow(Kcolon)
+
+# Seleziona i primi 30 pazienti
+sottogruppo <- unique(Kcolon$Patient_ID)[1:30]
+
+# Filtra i dati per includere solo il sottogruppo selezionato
+dati_sottogruppo <- Kcolon[Kcolon$Patient_ID %in% sottogruppo, ]
+
+
+# Carica il pacchetto ggplot2
+library(ggplot2)
+
+# Crea il grafico
+ggplot(dati_sottogruppo, aes(x = overall_survival_months, y = Patient_ID)) +
+  geom_segment(aes(x = 0, xend = overall_survival_months, yend = Patient_ID), color = "black", linewidth = 1) +
+  geom_point(aes(shape = factor(vital_status), color = factor(vital_status)), size = 3) +
+  scale_color_manual(values = c("blue", "red"), name = "Vital Status", labels = c("Alive", "Dead")) +
+  scale_shape_manual(values = c(16, 17), name = "Vital Status", labels = c("Alive", "Dead")) +  # Tondino pieno per Alive (16), triangolo pieno per Dead (17)
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80, 100)) +  # Imposta i punti di intersezione sull'asse x
+  geom_vline(xintercept = 60, linetype = "solid", color = "green", linewidth = 0.5) + # Aggiungi una linea verticale verde a x = 60
+  labs(x = "Months of Survival",
+       y = "Patients",
+       color = "Vital Status",
+       shape = "Vital Status",
+       title = "Survival of patients with Kcolon (Subgroup)") +
+  theme_minimal()
+library(ggplot2)
+
+"Questo grafico illustra la sopravvivenza nel tempo di pazienti affetti da cancro al colon. Ogni linea orizzontale rappresenta un singolo soggetto, con l'asse delle ordinate che indica l'identificativo e l'asse delle ascisse che indica i mesi di sopravvivenza complessivi. 
+ I pallini indicano i pazienti deceduti, mentre i triangoli rappresentano quelli ancora in vita. Una linea verde verticale al numero 60 evidenzia il periodo di studio di cinque anni. Prima di questo punto, su nove pazienti, sette sono deceduti, mentre due rimangono in vita fino a circa 25-35 mesi. 
+ Va notato che i pazienti sopravvissuti potrebbero essere considerati censurati, ma poiché i dati di censura non sono disponibili nel dataset, questo aspetto non è stato considerato nell'analisi."
+
+
+
+"Analisi della sopravvivenza complessiva di Kaplan-Meier in relazione alle fasce d'età"
+
+# Definisci i limiti degli intervalli di età
+age_groups <- cut(Kcolon$age, 
+                  breaks = c(0, 40, 60, Inf),
+                  labels = c("Under 40", "40-60 years", "Over 60"))
+
+# Calcola Kaplan-Meier per gruppi di età
+km_fit_age <- survfit(Surv(overall_survival_months, vital_status) ~ age_groups, data = Kcolon)
+
+
+# Disegna il grafico Kaplan-Meier
+plot(km_fit_age, col = c("blue", "red", "green"), lty = c(1, 2, 3),
+     xlab = "Overall Survival Months", ylab = "Probability of survival",
+     main = "Survival Curve for Age Groups")
+
+# Aggiungi la legenda
+legend("bottomright", legend = c("Under 40", "40-60 years", "Over 60"), 
+       col = c("blue", "red", "green"), lty = 1, cex = 1)
+
+# Calcola il numero di soggetti a rischio e i mediani
+summary_km_age <- summary(km_fit_age)
+
+# Stampa l'output numerico
+print(summary_km_age)
+
+# Fascia di età: Meno di 40 anni
+
+# All'inizio dell'osservazione, i soggetti di questa fascia di età mostrano una probabilità di sopravvivenza molto elevata, del 94.7% a soli 7.37 mesi. 
+# Tuttavia, questa probabilità diminuisce nel tempo, attestandosi al 33.7% a 91.83 mesi, indicando un progressivo deterioramento della sopravvivenza nel lungo periodo. 
+
+# Fascia di età: 40-60 anni
+
+# I soggetti di questa fascia di età iniziano con una probabilità di sopravvivenza molto elevata, del 98.6% a 10.5 mesi. 
+# Anche se la sopravvivenza diminuisce nel corso del tempo, rimane generalmente alta nel lungo periodo, con una probabilità del 33.7% a 108.5 mesi. 
+
+# Fascia di età: Oltre 60 anni
+
+# I soggetti di età superiore ai 60 anni mostrano una probabilità di sopravvivenza particolarmente alta all'inizio dell'osservazione, del 99.0% a 3.77 mesi. 
+# Anche se la sopravvivenza diminuisce nel tempo, questa fascia di età presenta una sopravvivenza più durevole nel lungo periodo, con una probabilità del 41.8% a 102.9 mesi. 
+
+# Curva blu (età inferiore a 40 anni):
+
+"Inizialmente, i soggetti in questa fascia di età mostrano un'elevata probabilità di sopravvivenza, che diminuisce gradualmente nel tempo."
+"Nonostante l'alto tasso di sopravvivenza iniziale, nel lungo periodo la probabilità di sopravvivenza si riduce significativamente."
+
+# Curva rossa (età compresa tra 40 e 60 anni):
+
+"Anche in questo gruppo di età, i soggetti mostrano un'elevata probabilità di sopravvivenza all'inizio dell'osservazione."
+"Nel corso del tempo, la probabilità di sopravvivenza diminuisce, ma rimane generalmente alta nel lungo periodo."
+
+# Curva verde (età superiore a 60 anni):
+
+"Esempi di questa fascia di età iniziano con una sopravvivenza significativamente più alta, rispetto al gruppo di età compreso tra 40 e 60 anni, specialmente nel periodo compreso tra i 20 e i 60 mesi. 
+ Successivamente, si osserva una diminuzione della sopravvivenza nel corso del tempo, sebbene rimanga una sopravvivenza più durevole nel lungo periodo rispetto agli altri gruppi di età."
+
+
+
+"Curva di Sopravvivenza di Kaplan-Meier per l'analisi dei mesi di popravvivenza ed il genere"
+
+
+# Carica il pacchetto survival
+library(survival)
+
+# Calcola Kaplan-Meier per il sesso
+km_fit_sex <- survfit(Surv(overall_survival_months,vital_status) ~ sex, data = Kcolon)
+
+# Disegna il grafico Kaplan-Meier
+plot(km_fit_sex, col = c("blue", "red"), lty = c(1, 2), 
+     xlab = "Overall Survival Months", ylab = "Probability of Survival", 
+     main = "Survival curve for Gender")
+
+# Aggiungi la legenda
+legend("bottomright", legend = c("Male", "Female"), col = c("blue", "red"), lty = 1, cex = 0.8)
+
+# Calcola il numero di soggetti a rischio e i mediani
+summary_km_sex <- summary(km_fit_sex)
+
+# Stampa l'output numerico
+print(summary_km_sex)
+
+
+# Per il gruppo con sex=1 (maschile):
+
+# Per il gruppo maschile (sex=1), all'inizio del follow-up (3.77 mesi), la probabilità di sopravvivenza è del 99.1%, con una probabilità di decesso dello 0.855%.
+# Questo suggerisce un'elevata probabilità di sopravvivenza iniziale nel gruppo maschile. Nel corso del tempo, la probabilità di sopravvivenza continua a diminuire gradualmente, mentre la probabilità di decesso aumenta, seppur in modo contenuto.
+
+# Per il gruppo femminile (sex=2), all'inizio del follow-up (5.53 mesi), la probabilità di sopravvivenza è del 98.8%, con una probabilità di decesso dello 1.25%.
+# Anche per questo gruppo, si osserva un'iniziale buona probabilità di sopravvivenza, sebbene leggermente inferiore rispetto al gruppo maschile. Nel corso del tempo, la probabilità di sopravvivenza nel gruppo femminile diminuisce, mentre la probabilità di decesso aumenta gradualmente, seguendo un andamento simile a quello del gruppo maschile.
+
+# Graficamente si nota come nel periodo che va da 0 a quasi 40 mesi, le due curve di sopravvivenza mostrano un andamento simile, con una leggera prevalenza della sopravvivenza degli uomini verso il 20esimo mese. 
+# Successivamente, oltre i cento mesi di osservazione, si osserva un annullamento della discrepanza tra le curve, con una maggiore convergenza tra le sopravvivenze maschili e femminili.
+
+
+
+"Analisi della sopravvivenza complessiva di Kaplan-Meier in relazione alla presenza o assenza di steatosi epatica"
+
+
+# Esegui l'analisi di sopravvivenza di Kaplan-Meier
+km_fit <- survfit(Surv(overall_survival_months, vital_status) ~ steatosis_yesno, data = Kcolon)
+
+# Disegna il grafico di Kaplan-Meier
+plot(km_fit, xlab = "Overall Survival Months", ylab = "Probability of survival", col = c("green", "purple"), lwd = 2, main = "Hepatic Steatosis Impact on Survival: Kaplan-Meier Curves", cex.main = 1)
+
+# Legenda 
+legend("bottomright", legend = levels(Kcolon$steatosis_yesno), col = c("green", "purple"), lwd = 2, title = "Steatosis Yes/No")
+
+# Stampa un riassunto dell'analisi di Kaplan-Meier
+summary(km_fit)
+
+# Nel gruppo senza steatosi (steatosis_yesno=0), emerge che all'inizio dell'osservazione, a 3.77 mesi, la probabilità di sopravvivenza è molto elevata, pari al 99.2%, mentre a 9.70 mesi rimane ancora alta, con il 98.4%. 
+# Tuttavia, man mano che il tempo passa, questa probabilità diminuisce gradualmente, raggiungendo il 35.5% a 102.60 mesi, indicando un peggioramento della sopravvivenza nel lungo periodo.
+
+# Passando al gruppo con steatosi (steatosis_yesno=1), si osserva che, anche se all'inizio la probabilità di sopravvivenza è leggermente inferiore rispetto al gruppo senza steatosi, rimane comunque significativamente alta. 
+# A 5.53 mesi, la probabilità di sopravvivenza è del 98.5%, mentre a 14.13 mesi si attesta al 95.6%. 
+# Anche qui, nel corso del tempo, la probabilità di sopravvivenza diminuisce, ma raggiunge il 47.0% a 102.90 mesi, mantenendo una performance relativamente standard nel lungo periodo.
+
+# Analizzando complessivamente i dati, emergono due trend distinti: il gruppo senza steatosi mostra probabilità di sopravvivenza leggermente superiori rispetto al gruppo con steatosi in tutti i periodi temporali considerati. 
+# Questi risultati suggeriscono che la presenza di steatosi potrebbe avere un impatto sulla sopravvivenza nel lungo termine, anche se entrambi i gruppi mostrano un deterioramento della sopravvivenza nel corso del tempo.
+
+"Visivamente, sembra che all'inizio la curva di sopravvivenza per entrambi i gruppi di pazienti sia simile; tuttavia, in seguito emerge chiaramente che i soggetti senza steatosi epatica mostrano una maggiore sopravvivenza."
+
+
+
+
+"Analisi della sopravvivenza complessiva di Kaplan-Meier in relazione alla percentuale di necrosi tumorale"
+
+# Crea gli intervalli per la variabile "necrosis_percent"
+Kcolon$necrosis_groups <- cut(Kcolon$necrosis_percent, breaks = c(0, 0.5, 1.0), labels = c("0-0.5", "0.51-1.0"), include.lowest = TRUE)
+
+# Esegui l'analisi di sopravvivenza di Kaplan-Meier
+km_fit <- survfit(Surv(overall_survival_months, vital_status) ~ necrosis_groups, data = Kcolon)
+
+# Disegna il grafico di Kaplan-Meier con colori personalizzati
+plot(km_fit, xlab = "Overall Survival Months", ylab = "Probability of survival", col = c("blue", "green"), lwd = 2, main = "Kaplan-Meier for Necrosis (%) and Survival")
+
+# Aggiungi una legenda 
+legend("bottomright", legend = levels(Kcolon$necrosis_groups), col = c("blue", "green"), lwd = 2, title = "Necrosis percentage")
+
+# Output numerico
+print(km_fit)
+
+# necrosis_groups=0-0.5, (s0): Questo gruppo comprende soggetti con una percentuale di necrosi compresa tra 0 e 0.5. Non ci sono eventi (valore 0) registrati in questo gruppo durante il periodo di osservazione. Il tempo medio di sopravvivenza, calcolato come media dei tempi restrittivi in stato (rmean*), è di circa 81.58 mesi.
+# necrosis_groups=0.51-1.0, (s0): Questo gruppo comprende soggetti con una percentuale di necrosi compresa tra 0.51 e 1.0. Anche in questo gruppo non ci sono eventi registrati durante il periodo di osservazione. Il tempo medio di sopravvivenza è leggermente più alto rispetto al primo gruppo, con una media di circa 84.14 mesi.
+# necrosis_groups=0-0.5, 1: Questo gruppo comprende soggetti con una percentuale di necrosi compresa tra 0 e 0.5 che hanno subito l'evento (valore 1). Ci sono 92 eventi registrati in questo gruppo. Il tempo medio di sopravvivenza per questi soggetti è di circa 50.35 mesi.
+# necrosis_groups=0.51-1.0, 1: Questo gruppo comprende soggetti con una percentuale di necrosi compresa tra 0.51 e 1.0 che hanno subito un evento (morte). Ci sono 15 eventi registrati in questo gruppo. Il tempo medio di sopravvivenza per questi soggetti è leggermente più basso, con una media di circa 47.79 mesi.
+# In sintesi, i risultati mostrano come la percentuale di necrosi possa influenzare la sopravvivenza dei soggetti, con un tempo medio di sopravvivenza inferiore nei soggetti con una percentuale di necrosi più elevata.
+
+"La curva blu rappresenta i soggetti con una percentuale di necrosi compresa tra 0 e 50. 
+ Partendo dal livello di sopravvivenza zero, questa curva mostra un incremento graduale della sopravvivenza nel corso del tempo. 
+ Alla fine del periodo osservato, la curva diventa piatta, indicando che tutti i soggetti in questo gruppo hanno raggiunto lo stesso livello di sopravvivenza.
+
+ La curva verde rappresenta i soggetti con una percentuale di necrosi compresa tra 51 e 100. 
+ Questa curva si trova sopra la curva blu e mostra un aumento più rapido della sopravvivenza nel corso del tempo. 
+ Tuttavia, alla fine dell'analisi, la curva verde si stabilizza al di sotto della curva blu, suggerendo che, nonostante un iniziale vantaggio nella sopravvivenza, 
+ i soggetti con una percentuale più alta di necrosi hanno una probabilità inferiore di sopravvivenza rispetto ai soggetti con una necrosi meno estesa.
+"
+
+
+
+
+# Analisi di sopravvivenza di Kaplan-Meier per i diversi gruppi di BMI
+
+# Crea intervalli per la variabile "body_mass_index"
+Kcolon$BMI_groups <- cut(Kcolon$body_mass_index, breaks = c(0, 18.5, 25, 30, Inf), labels = c("Underweight", "Normal weight", "Overweight", "Obese"))
+
+# Esegui l'analisi di sopravvivenza di Kaplan-Meier
+km_fit <- survfit(Surv(overall_survival_months, vital_status) ~ BMI_groups, data = Kcolon)
+
+# Disegna il grafico di Kaplan-Meier con colori personalizzati
+plot(km_fit, xlab = "Overall Survival Months", ylab = "Probability of survival", col = c("blue", "green", "orange", "red"), lwd = 2, main = "Kaplan-Meier Analysis for BMI Groups")
+
+# Aggiungi una legenda più piccola in alto a sinistra
+legend("topleft", legend = levels(Kcolon$BMI_groups), col = c("blue", "green", "orange", "red"), lwd = 2, title = "BMI Groups", cex = 0.8)
+
+# Mostra l'output numerico
+print(km_fit)
+
+
+# Risultati del tempo medio di sopravvivenza per i diversi gruppi BMI:
+
+# Nel gruppo BMI Underweight, nessun evento morte è stato osservato durante il periodo di studio, quindi il tempo medio di sopravvivenza fino all'evento di morte non può essere calcolato.
+# Nel gruppo BMI Normal weight, 1: 41 soggetti su 68 hanno sperimentato l'evento morte durante il periodo di studio. Il tempo medio di sopravvivenza fino all'evento per questi soggetti è stato di 56.42 mesi.
+# Nel gruppo BMI Overweight, 1: 37 soggetti su 70 hanno sperimentato l'evento morte durante il periodo di studio. Il tempo medio di sopravvivenza fino all'evento per questi soggetti è stato di 50.58 mesi.
+# Nel gruppo BMI Obese, 1: 29 soggetti su 56 hanno sperimentato l'evento morte durante il periodo di studio. Il tempo medio di sopravvivenza fino all'evento per questi soggetti è stato di 44.11 mesi.
+
+# Dal punto di vista grafico, i soggetti sovrappeso sembrano presentare una minore sopravvivenza nel lungo periodo rispetto ai soggetti normopeso e obesi.
+# Tuttavia, essi mostrano una probabilità di sopravvivenza più elevata soprattutto tra il 20° e il 90° mese rispetto ai soggetti obesi, ma inferiore rispetto ai soggetti normopeso oltre i 120 mesi.
+
+# Non sono  invece stati registrati eventi per i soggetti sottopeso durante il periodo di osservazione.
+
+
+
+# Analisi di sopravvivenza di Kaplan-Meier per i pazienti con e senza malattia extraepatica
+
+# Crea un oggetto di sopravvivenza
+fit <- survfit(Surv(overall_survival_months, vital_status) ~ extrahep_disease, data=Kcolon)
+
+# Disegna il grafico Kaplan-Meier con limiti personalizzati degli assi
+plot(fit, col=c("yellow", "red"), lwd=2.5, main="K-M Curves for Patients with and without Hepatic Steatosis",
+     xlab="Overall Survival Months", ylab="Probability of survival", lty=c(1, 1), xlim=c(0, 100), ylim=c(0, 1), cex.main= 1)
+# Aggiungi una legenda
+legend("topleft", legend=c("Without extrahepatic disease", "With extrahepatic disease"), 
+       col=c("yellow", "red"), lty=c(1, 1), cex=0.9)
+
+# Calcola il riassunto dell'analisi di sopravvivenza
+summary_fit <- summary(fit)
+
+# Stampa l'output numerico
+print(summary_fit)
+
+# Per il gruppo senza malattia extraepatica (extrahep_disease=0):
+# - Il tempo medio di sopravvivenza (restricted mean time in state) è di circa 131.93 mesi. 
+# - Il tasso di mortalità stimato (Pr(Died)) varia da circa 0.00556 a 0.61865 durante il periodo osservato. 
+#   Ciò indica che la probabilità di morte dei pazienti in questo gruppo è relativamente bassa all'inizio dell'osservazione e aumenta fino a raggiungere circa il 61.865% verso la fine del periodo osservato.
+
+# Per il gruppo con malattia extraepatica (extrahep_disease=1):
+# - Il tempo medio di sopravvivenza (restricted mean time in state) è di circa 63.77 mesi. 
+# - Il tasso di mortalità stimato (Pr(Died)) varia da circa 0.0588 a 0.7754 durante il periodo osservato. 
+#   Ciò suggerisce che i pazienti in questo gruppo hanno una probabilità di morte più elevata rispetto al gruppo senza malattia extraepatica, con un picco del 77.54% verso la fine del periodo osservato.
+
+# Confronto:
+# Nel gruppo "extrahep_disease=0" la probabilità di sopravvivenza è più alta rispetto al gruppo "extrahep_disease=1" per tutti gli intervalli di tempo considerati. Ciò suggerisce che i pazienti senza malattia extraepatica tendono a vivere più a lungo rispetto a quelli con tale comorbilità.
+
+# Graficamente l'andamento è perfettamente confermato.
+
+
+
+
+# Analisi di sopravvivenza di Kaplan-Meier per i pazienti con risposta percentuale High e Low al trattamento"
+
+# Creazione della variabile response_group
+Kcolon$response_group <- cut(Kcolon$total_response_percent, 
+                             breaks = c(0, 0.5, 1), 
+                             labels = c("0-50%", "51-100%"))
+
+# Calcola la curva di sopravvivenza di Kaplan-Meier per ciascun gruppo definito da 'response_group'
+km_percent <- survfit(Surv(overall_survival_months) ~ response_group, 
+                      weights = NULL, data = Kcolon)
+
+# Traccia il grafico di Kaplan-Meier 
+ggsurvplot(km_percent, data = Kcolon, legend.title = "Response Group",
+           xlab = "Overall Survival Months", ylab = "Probability of Survival",
+           title = "Survival by Total Response Percent",
+           risk.table = FALSE, legend.labs = c("Low", "High"))
+
+# Output numerico
+summary(km_percent)
+
+
+
+# Response Group High:
+
+# Dall'analisi dei dati per il gruppo con risposta "High", si osserva che inizialmente, il tasso di sopravvivenza è notevolmente elevato, con una percentuale del 97.83% a 7.37 mesi. 
+# Questo dato è incoraggiante e suggerisce una buona prognosi iniziale per i pazienti del gruppo "High". 
+# Tuttavia, nel corso del tempo, si osserva una diminuzione graduale della sopravvivenza, con un calo costante del tasso di sopravvivenza nei mesi successivi.
+# Ad esempio, a 11.07 mesi, la percentuale di sopravvivenza è scesa al 95.65%, e a 13.67 mesi al 93.48%. Questi dati indicano che, nonostante un'iniziale alta percentuale di sopravvivenza, i pazienti nel gruppo "High" iniziano a sperimentare una diminuzione della sopravvivenza nel corso del tempo. 
+# L'errore standard associato alle stime di sopravvivenza è generalmente basso, indicando una buona precisione nelle stime effettuate. Gli intervalli di confidenza al 95% indicano una certa variabilità nei risultati, ma mantenendo comunque un livello significativo di fiducia nella precisione delle stime. 
+# Complessivamente, questi risultati forniscono una visione dettagliata della sopravvivenza dei pazienti nel gruppo "High", mostrando una tendenza alla diminuzione della sopravvivenza nel tempo, ma con alcuni pazienti che mantengono una sopravvivenza prolungata.
+
+# Response Group Low:
+
+# Analizzando i dati relativi al gruppo con risposta "Low", si osserva una tendenza alla diminuzione della sopravvivenza nel corso del tempo. 
+# All'inizio dell'analisi, la percentuale di sopravvivenza è molto elevata, con il 98.36% dei soggetti ancora vivi a 3.77 mesi.
+# Tuttavia, anche se la sopravvivenza rimane elevata nei primi mesi, si verifica una graduale diminuzione nel tempo. Ad esempio, a 5.53 mesi la percentuale di sopravvivenza scende al 96.72%, e a 9.70 mesi al 95.08%. 
+# Questi dati suggeriscono che, nonostante una buona sopravvivenza iniziale, i pazienti nel gruppo "Low" iniziano a sperimentare una diminuzione della sopravvivenza nel corso del tempo.
+# L'errore standard associato alle stime di sopravvivenza è generalmente basso, indicando una buona precisione nelle stime effettuate. Gli intervalli di confidenza al 95% confermanola variabilità nei risultati ma mantenendo un livello significativo di fiducia nella precisione delle stime. 
+# Complessivamente, questi risultati evidenziano una tendenza alla diminuzione della sopravvivenza nel gruppo "Low" nel corso del tempo, con una buona precisione nelle stime di sopravvivenza fornite dall'analisi.
+
+# Sembra, in definitiva, che inizialmente il gruppo con risposta "High" presenti una sopravvivenza leggermente migliore rispetto al gruppo con risposta "Low". Tuttavia, entrambi i gruppi mostrano una tendenza alla diminuzione della sopravvivenza nel corso del tempo.
+
+# Graficamente l'andamento è confermato
+
+
+
+# Analisi di sopravvivenza di Kaplan-Meier per i pazienti con e senza comorbilità
+
+
+
+# Filtra il dataset per includere solo le variabili di interesse e rimuovere le righe con valori mancanti
+filtered_data <- na.omit(Kcolon[, c("overall_survival_months", "major_comorbidity")])
+
+# Calcola la curva di sopravvivenza di Kaplan-Meier per il gruppo con comorbilità maggiore
+km_fit <- survfit(Surv(overall_survival_months) ~ major_comorbidity, data = filtered_data)
+
+# Traccia il grafico di Kaplan-Meier con colori personalizzati
+ggsurvplot(km_fit, data = filtered_data, legend.title = "Major Comorbidity",
+           xlab = "Total months of survival", ylab = "Probability of survival",
+           title = list(label = "K-M Curves for greater and lesser comorbidity"),
+           risk.table = FALSE, legend.labs = c("No", "Yes"),
+           palette = c("#FFD700", "#8A2BE2"),
+           palette.name = c("No", "Yes"))
+
+
+# Output numerico
+summary(km_fit)
+
+
+ "
+Dall'analisi dei pazienti senza comorbilità (major_comorbidity=0), emerge una tendenza alla sopravvivenza positiva nel corso del tempo. Inizialmente, a 9.7 mesi dalla diagnosi, la percentuale di sopravvivenza è estremamente alta, raggiungendo il 98.86%. Questo dato suggerisce una buona prognosi iniziale per i pazienti senza comorbilità. 
+Nel prosieguo dell'analisi, si osserva un calo graduale ma costante della sopravvivenza nel corso del tempo, con una diminuzione progressiva della percentuale di sopravvivenza. Nonostante questo calo, la sopravvivenza rimane generalmente elevata nei mesi successivi, indicando una buona tenuta nel tempo per i pazienti senza comorbilità. 
+Gli intervalli di confidenza al 95% forniscono ulteriori informazioni sull'incertezza delle stime di sopravvivenza, confermando una certa variabilità nei risultati ma mantenendo comunque un livello significativo di fiducia nella precisione delle stime. Complessivamente, questi risultati evidenziano una buona sopravvivenza nel gruppo dei pazienti senza comorbilità nel corso del tempo, con una tendenza al mantenimento della sopravvivenza nonostante il decorrere della malattia.
+
+Analizzando i dati relativi ai soggetti con comorbilità, si osserva che la probabilità di sopravvivenza diminuisce nel tempo in modo costante. Ad esempio, a 3.77 mesi dalla diagnosi, su 109 soggetti a rischio, uno ha subito l'evento di interesse, portando la probabilità di sopravvivenza al 99.083%. 
+Questa percentuale diminuisce gradualmente, e già a 131.93 mesi, la probabilità di sopravvivenza raggiunge lo zero. La curva di sopravvivenza mostra una rapida diminuzione della probabilità di sopravvivenza nei primi tempi, con una diminuzione più graduale nel tempo successivo. 
+Ad esempio, a 14.13 mesi, la probabilità di sopravvivenza è del 94.495%, mentre a 60.8 mesi scende al 57.798%. Questi dati numerici evidenziano un impatto significativo delle comorbilità sulla sopravvivenza dei pazienti nel corso del tempo, sottolineando l'importanza di strategie terapeutiche e di gestione mirate per migliorare gli esiti clinici.
+"
+
+
+# Dal punto di vista visivo, sembra che il trend si inverta, indicando una maggiore probabilità di sopravvivenza per i soggetti con comorbilità, 
+# soprattutto nel periodo compreso tra circa 85 e 95 mesi.
+
+# Utilizzo il test di Wilcoxon rank sum per valutare se esiste una differenza significativa nella sopravvivenza complessiva tra i soggetti con e senza comorbilità nel dataset Kcolon
+
+# Esegui il test di Wilcoxon
+wilcox.test(overall_survival_months ~ major_comorbidity, data = Kcolon)
+
+" Poiché il p-value (0.2543) è maggiore del livello di significatività 0.05, non abbiamo sufficienti prove per rifiutare l'ipotesi nulla. L'ipotesi nulla afferma che non vi è alcuna differenza significativa nei tempi di sopravvivenza complessivi tra i gruppi con e senza comorbilità."
+
+
+
+
+# Fisso 4 ipotesi per comprendere l'influenza della chemioterapia pre-operatoria sull'andamento della malattia
+
+# I ipotesi
+# Chemioterapia pre-operatoria
+H0_chemioterapia_preop <- "La chemioterapia pre-operatoria non influisce sulla progressione della malattia nel cancro al colon."
+H1_chemioterapia_preop <- "La chemioterapia pre-operatoria influisce positivamente sulla regressione della malattia nel cancro al colon."
+
+# II ipotesi
+# Chemioterapia pre-operatoria per cancro secondario epatico
+H0_chemioterapia_preop_liver <- "La chemioterapia pre-operatoria non influisce sulla progressione della malattia nel cancro secondario epatico."
+H1_chemioterapia_preop_liver <- "La chemioterapia pre-operatoria influisce positivamente sulla regressione della malattia nel cancro secondario epatico."
+
+# Esegui la regressione di Cox per valutare l'effetto della chemioterapia sulla progressione della malattia
+cox_model <- coxph(Surv(overall_survival_months) ~ chemo_before_liver_resection + progression_or_recurrence + progression_or_recurrence_liveronly, data = Kcolon)
+# Stampa i risultati della regressione di Cox
+summary(cox_model)
+
+# Chemioterapia pre-operatoria nel cancro al colon:
+# La chemioterapia pre-operatoria non mostra un effetto significativo sulla progressione della malattia nel cancro al colon (H0). 
+# Il coefficiente associato a chemo_before_liver_resection (0.1159) non è statisticamente significativo (p = 0.4358), indicando che non c'è una relazione lineare tra la chemioterapia pre-operatoria e la progressione della malattia primaria al colon.
+
+# Chemioterapia pre-operatoria nel cancro secondario (epatico):
+# Anche nel caso del cancro secondario, la chemioterapia pre-operatoria non influisce significativamente sulla progressione della malattia (H0). 
+# Il coefficiente associato a chemo_before_liver_resection (0.4253) non è statisticamente significativo (p = 0.0047), suggerendo che non c'è una relazione lineare tra la chemioterapia pre-operatoria e la progressione della malattia secondaria al fegato.
+
+# inoltre, la variabile "progression_or_recurrence1" risulta essere statisticamente significativa (p = 0.0217), il che suggerisce che la presenza di progressione o ricorrenza della malattia ha un impatto significativo sulla sopravvivenza complessiva. 
+# I soggetti che hanno avuto progressione o ricorrenza hanno un rischio di mortalità del 54.9% maggiore rispetto a quelli che non hanno avuto progressione o ricorrenza.
+
+# Le altre due variabili, "chemo_before_liver_resection1" e "progression_or_recurrence_liveronly1", non sono risultate statisticamente significative. 
+# Ciò suggerisce che la chemioterapia pre-operatoria e la progressione o ricorrenza della malattia epatica potrebbero non avere un impatto significativo sulla sopravvivenza complessiva, almeno nel contesto di questo modello e dataset.
+
+
+
+# Filtra il dataset per includere solo le osservazioni con valore "1" per le tre variabili
+subset_data <- subset(Kcolon, 
+                      chemo_before_liver_resection == 1 & 
+                        progression_or_recurrence == 1 & 
+                        progression_or_recurrence_liveronly == 1)
+
+# Adatta il modello di Kaplan-Meier con il dataset filtrato
+kaplan_meier_model <- survfit(Surv(overall_survival_months) ~ 1, data = subset_data)
+
+# Traccia il grafico di Kaplan-Meier con tre curve colorate e legenda
+plot(kaplan_meier_model, 
+     col = c("red", "blue", "green"), 
+     xlab = "Overall survival months", 
+     ylab = "Cumulative survival", 
+     main = "Cumulative Survival for Groups 'Yes'")
+
+# Aggiungi la legenda
+legend("topright", 
+       legend = c("Chemo Yes", "Progression Yes", "Progression Liveronly Yes"), 
+       col = c("red", "blue", "green"), 
+       lwd = 1)
+
+summary(kaplan_meier_model)
+
+
+
+# Chemo=0, progression_or_recurrence=0, progression_or_recurrence_liveronly=0:
+# La sopravvivenza in questo gruppo è risultata estremamente elevata, superiore al 95% fino a circa 27 mesi dopo l'intervento chirurgico.
+
+# Chemo=0, progression_or_recurrence=1, progression_or_recurrence_liveronly=0:
+# Nonostante la presenza di recidive, la sopravvivenza in questo gruppo rimane significativamente alta, con una percentuale superiore al 90% fino a circa 17 mesi dopo l'intervento chirurgico.
+
+# Chemo=0, progression_or_recurrence=1, progression_or_recurrence_liveronly=1:
+# La sopravvivenza in questo gruppo è notevolmente inferiore rispetto ai precedenti, con una diminuzione graduale nel tempo a causa della diffusione della malattia nel fegato.
+
+# Chemo=1, progression_or_recurrence=0, progression_or_recurrence_liveronly=0:
+# La sopravvivenza in questo gruppo è estremamente elevata, superiore al 95% fino a circa 32 mesi dopo l'intervento chirurgico.
+
+# Chemo=1, progression_or_recurrence=1, progression_or_recurrence_liveronly=0:
+# Nonostante la chemioterapia, la sopravvivenza in questo gruppo diminuisce nel tempo, con una percentuale che si attesta intorno al 50% a circa 40 mesi dopo l'intervento chirurgico.
+
+# Chemo=1, progression_or_recurrence=1, progression_or_recurrence_liveronly=1:
+# Nonostante la chemioterapia, la sopravvivenza inizialmente è elevata, sopra il 95% fino a circa 10 mesi dopo l'intervento chirurgico, ma diminuisce gradualmente nel tempo a causa della progressione della malattia nel fegato.
+
+" Le osservazioni grafiche indicano che i pazienti con progressione secondaria hanno una sopravvivenza cumulativa generalmente superiore rispetto a quelli con progressione primaria della malattia. 
+  Inoltre, sembra che i soggetti che hanno ricevuto chemioterapia pre-operatoria mostrino una probabilità cumulativa di sopravvivenza maggiore rispetto a quelli con progressione primaria della malattia. 
+  Questo suggerisce un possibile impatto positivo della chemioterapia pre-operatoria sulla sopravvivenza dei pazienti, specialmente in confronto alla progressione primaria della malattia"
+
+
+
+# III ipotesi
+# Chemioterapia pre-operatoria e tempi di progressione della malattia
+H0_chemioterapia_preop <- "La chemioterapia pre-operatoria non ha alcun effetto sulla sopravvivenza senza malattia primaria nel cancro al colon."
+H1_chemioterapia_preop <- "La chemioterapia pre-operatoria ha un effetto positivo sulla sopravvivenza senza malattia primaria nel cancro al colon."
+
+cox_model_DFS <- coxph(Surv(months_to_DFS_progression) ~ chemo_before_liver_resection + vital_status_DFS, data = Kcolon)
+summary(cox_model_DFS)
+
+# Coefficiente e significatività per chemo_before_liver_resection1:
+# Il coefficiente associato a chemo_before_liver_resection1 è 0.2976. 
+# Questo indica che i soggetti sottoposti a chemioterapia hanno una probabilità significativamente maggiore di avere una sopravvivenza libera da malattia primaria,
+# rispetto a quelli che non hanno ricevuto la chemioterapia. 
+# Il valore di p per questo predittore è 0.0463, indicando una significatività marginale.
+
+# Coefficiente e significatività per vital_status_DFS1:
+# Il coefficiente associato a vital_status_DFS1 è 2.8075, con un valore di p molto vicino a zero, indicando una significatività elevata. 
+# n generale, questi risultati indicano che lo stato vitale dei pazienti durante il periodo libero da malattia primaria è un forte predittore della durata di questa fase. 
+# I pazienti che sopravvivono durante questo periodo hanno una probabilità significativamente maggiore di prolungare la durata del periodo libero da malattia rispetto a coloro che muoiono  
+
+
+# In generale, il modello sembra essere statisticamente significativo (p < 0.05), il che suggerisce che sia chemo_before_liver_resection che vital_status_DFS sono predittori significativi per il tempo di sopravvivenza libero da malattia primaria (months_to_DFS_progression). 
+# La concordanza del modello è del 73%, indicando una buona capacità predittiva del modello.
+
+# Calcola le curve di sopravvivenza di Kaplan-Meier per i gruppi 0 e 1 di chemo_before_liver_resection
+km_fit_0 <- survfit(Surv(months_to_DFS_progression) ~ 1, data = filter(Kcolon, chemo_before_liver_resection == 0))
+km_fit_1 <- survfit(Surv(months_to_DFS_progression) ~ 1, data = filter(Kcolon, chemo_before_liver_resection == 1))
+
+# Crea il dataframe per i dati di sopravvivenza
+df_0 <- data.frame(time = km_fit_0$time, surv = km_fit_0$surv, group = "Chemo No")
+df_1 <- data.frame(time = km_fit_1$time, surv = km_fit_1$surv, group = "Chemo Yes")
+
+# Unisci i dataframe
+combined_df <- rbind(df_0, df_1)
+
+# Crea il grafico di Kaplan-Meier
+ggplot(combined_df, aes(x = time, y = surv, color = group)) +
+  geom_step(size = 1.5) +  # Aumenta lo spessore delle linee
+  geom_step() +
+  labs(title = "Kaplan-Meier Survival Curve for Chemotherapy",
+       x = "Months Free from Primary Disease",
+       y = "Survival Probability",
+       color = "Chemo Groups") +  
+  scale_color_manual(values = c("magenta", "green")) +  
+  theme_minimal()
+
+# Graficamente, i due gruppi di soggetti, uno sottoposto a chemioterapia e l'altro no, mostrano una partenza simile, ma con una discrepanza che diventa più accentuata tra il 25° e il 75° mese. 
+# È interessante notare che, nonostante una probabilità di sopravvivenza iniziale simile, i pazienti che non hanno ricevuto chemioterapia prima dell'intervento al fegato sembrano avere una sopravvivenza più breve senza malattia primaria. Tuttavia, oltre i cento mesi, queste differenze si annullano e le due curve si ricongiungono.
+
+
+# IV ipotesi
+# Chemio terapia pre-operatoria e tempi di progressione della malattia secondaria
+H0_chemioterapia_preop <-"La chemioterapia pre-operatoria non ha alcun effetto sulla sopravvivenza senza malattia secondaria al fegato."
+H1_chemioterapia_preop <-"La chemioterapia pre-operatoria ha un effetto positivo sulla sopravvivenza senza malattia secondaria al fegato."
+
+cox_model_liver_DFS <- coxph(Surv(months_to_liver_DFS_progression) ~ chemo_before_liver_resection + vital_status_liver_DFS, data = Kcolon)
+summary(cox_model_liver_DFS)
+
+# Coefficienti e p-value per chemo_before_liver_resection1
+# Il coefficiente associato a questo predittore è 0.4253. 
+# Questo indica che i soggetti sottoposti a chemioterapia hanno una probabilità significativamente maggiore di avere una durata più lunga di mesi liberi dalla malattia primaria rispetto a quelli che non hanno ricevuto la chemioterapia. Quindi, la chemioterapia potrebbe essere associata ad una maggiore durata dei mesi liberi dalla malattia primaria.
+# Questo risultato è significativo con un valore di p = 0.0047.
+# Il valore di exp(coef) è 1.530, che significa che il rischio di progressione della malattia al fegato è 1.53 volte più alto per i pazienti trattati con chemioterapia rispetto a quelli non trattati.
+
+# Coefficienti e p-value per vital_status_liver_DFS1
+# Il coefficiente associato a questo predittore è 2.2163. 
+# Ciò significa che i soggetti che sono deceduti durante il periodo di osservazione hanno avuto una durata significativamente più breve di mesi liberi dalla malattia primaria rispetto a quelli che sono sopravvissuti. Quindi, lo stato vitale del paziente è fortemente correlato alla durata dei mesi liberi dalla malattia primaria.
+# Questo risultato è altamente significativo con un valore di p molto vicino a zero.
+# Il valore di exp(coef) è 9.173, che significa che il rischio di progressione della malattia al fegato è 9.173 volte più alto per i pazienti deceduti rispetto a quelli sopravvissuti.
+
+# Il modello nel complesso è statisticamente significativo (p < 0.05), suggerendo che sia chemo_before_liver_resection che vital_status_liver_DFS sono predittori significativi per il tempo libero da malattia secondaria epatica (months_to_liver_DFS_progression). 
+# La concordanza del modello è del 73.7%, indicando una buona capacità predittiva del modello.
+
+# Filter the dataset for chemo_before_liver_resection values 1 and 0
+filtered_data_1 <- filter(Kcolon, chemo_before_liver_resection == 1)
+filtered_data_0 <- filter(Kcolon, chemo_before_liver_resection == 0)
+
+# Create survival objects
+surv_obj_1 <- Surv(filtered_data_1$months_to_liver_DFS_progression)
+surv_obj_0 <- Surv(filtered_data_0$months_to_liver_DFS_progression)
+
+# Calculate Kaplan-Meier survival curves
+km_fit_1 <- survfit(surv_obj_1 ~ 1)
+km_fit_0 <- survfit(surv_obj_0 ~ 1)
+
+# Create dataframes for survival data
+df_1 <- data.frame(time = km_fit_1$time, surv = km_fit_1$surv, group = "Chemo Yes")
+df_0 <- data.frame(time = km_fit_0$time, surv = km_fit_0$surv, group = "Chemo No")
+
+# Combine the dataframes
+combined_df <- rbind(df_1, df_0)
+
+# Plot Kaplan-Meier survival curves
+ggplot(combined_df, aes(x = time, y = surv, color = group)) +
+  geom_step(size = 1.5) +  
+  geom_step() +
+  labs(title = "Kaplan-Meier Survival Curve for Chemotherapy",
+       x = "Months Free from Secondary Disease",
+       y = "Survival Probability",
+       color = "Chemo Groups") +  
+  theme_minimal()
+
+
+# Graficamente, i due gruppi di soggetti, uno sottoposto a chemioterapia e l'altro no, mostrano una partenza simile, ma con una netta discrepanza nei primi cento mesi di sopravvivenza senza malattia secondaria.
+# È interessante notare che, nonostante una probabilità di sopravvivenza iniziale simile, i pazienti che non hanno ricevuto chemioterapia prima dell'intervento al fegato sembrano vivere meno a lungo senza malattia secondaria. 
+# Tuttavia, oltre i cento mesi, queste differenze si annullano e le due curve si ricongiungono.
+
+
+
+
+" Likelihood Ratio Test nei modelli di regressione Cox"
+
+
+Modello_Completo <- coxph(Surv(overall_survival_months) ~ age + body_mass_index + 
+                            max_tumor_size + total_response_percent + necrosis_percent + 
+                            mucin_percent + months_to_DFS_progression + months_to_liver_DFS_progression + 
+                            node_positive_primary + synchronous_crlm + multiple_metastases + 
+                            clinrisk_stratified + vital_status + extrahep_disease + chemo_before_liver_resection + 
+                            steatosis_yesno + fibrosis_greater_40_percent + progression_or_recurrence + 
+                            progression_or_recurrence_liveronly + vital_status_liver_DFS + 
+                            sex + major_comorbidity + vital_status_DFS,
+                          data = Kcolon)
+
+Modello_Ridotto <- coxph(Surv(overall_survival_months) ~ age + max_tumor_size + 
+                           necrosis_percent + mucin_percent + node_positive_primary + 
+                           synchronous_crlm + clinrisk_stratified + multiple_metastases + 
+                           vital_status + chemo_before_liver_resection + 
+                           fibrosis_greater_40_percent + sex,
+                         data = Kcolon)
+
+LRT <- anova(Modello_Completo, Modello_Ridotto, test = "Chisq")
+summary(Modello_Completo)
+summary(Modello_Ridotto)
+print(LRT)
+
+### Modello Completo
+
+# Età
+# age_description <- "Per ogni anno in più di età, c'è una diminuzione dell'1.6% del rischio di evento. Il coefficiente di -0.0159 indica questa relazione. Il p-value di 0.0298 suggerisce che questa relazione è statisticamente significativa."
+
+# Indice di massa corporea
+# body_mass_index_description <- "Per ogni unità di aumento nel BMI, c'è un aumento dello 0.25% del rischio di evento, ma il p-value di 0.8898 indica che questa relazione potrebbe essere casuale."
+
+# Dimensione massima del tumore
+# max_tumor_size_description <- "Per ogni unità di aumento nella dimensione massima del tumore, c'è una diminuzione dell'2.22% del rischio di evento, ma il p-value di 0.5270 non è significativo."
+
+# Percentuale di risposta totale
+# total_response_percent_description <- "Per ogni unità di aumento nella percentuale di risposta totale al trattamento, c'è un aumento del 35.22% del rischio di evento, ma il p-value di 0.6808 suggerisce che questa relazione potrebbe essere casuale."
+
+# Percentuale di necrosi
+# necrosis_percent_description <- "Per ogni unità di aumento nella percentuale di necrosi, c'è un aumento del 16.66% del rischio di evento, ma il p-value di 0.8341 non è significativo."
+
+# Percentuale di mucina
+# mucin_percent_description <- "Per ogni unità di aumento nella percentuale di mucina, c'è una riduzione del 15.11% del rischio di evento, ma il p-value di 0.8592 non è significativo."
+
+# Mesi alla progressione della sopravvivenza senza malattia (DFS)
+# months_to_DFS_progression_description <- "Per ogni unità di aumento nel numero di mesi alla progressione della sopravvivenza libera da malattia, c'è una diminuzione dell'0.98% del rischio di evento, ma il p-value di 0.2267 non è significativo."
+
+# Mesi alla progressione della DFS al fegato
+# months_to_liver_DFS_progression_description <- "Per ogni unità di aumento nel numero di mesi alla progressione della sopravvivenza libera da malattia del fegato, c'è una diminuzione del 7.05% del rischio di evento. Il p-value molto basso (< 2e-16) indica che questa relazione è altamente significativa."
+
+# Noduli positivi (1)
+# node_positive_primary_description <- "La presenza di un nodo positivo primario non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.03869 e un p-value di 0.8391."
+
+# Presenza di metastasi sincrone (1)
+# synchronous_crlm_description <- "La presenza di metastasi sincrone sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.33399 e un p-value di 0.0645, suggerendo che questa relazione potrebbe essere significativa ma borderline."
+
+# Presenza di metastasi multiple
+# multiple_metastases_description <- "La presenza di metastasi multiple non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.030907 e un p-value di 0.8699."
+
+# clinrisk_stratified0
+# clinrisk_stratified0_description <- "Per l'indicazione di rischio clinico stratificato a 0, c'è un aumento del 3.64% del rischio di evento. Il coefficiente di 0.035737 indica questa relazione. Il p-value di 0.8822 non è significativo."
+
+# clinrisk_stratified1
+# clinrisk_stratified1_description <- "Per l'indicazione di rischio clinico stratificato a 1, c'è un aumento del 104.74% del rischio di evento. Il coefficiente di 0.716578 indica questa relazione. Il p-value di 0.0108 è significativo (*)."
+
+# Vital status (1)
+# vital_status_description <- "Lo stato vitale sembra influenzare in modo significativo il rischio di evento. I pazienti con stato vitale 1 hanno un aumento significativo del rischio di evento rispetto ai pazienti con stato vitale 0, con un coefficiente di 2.896989 e un p-value molto basso (< 2e-16)."
+
+# Malattia extraepatica (1)
+# extrahep_disease_description <- "La presenza di malattia extraepatica sembra influenzare in modo significativo il rischio di evento, con un coefficiente di 1.415351 e un p-value molto basso (< 2e-16)."
+
+# Chemioterapia prima della resezione epatica
+# chemo_before_liver_resection_description <- "La chemioterapia prima della resezione epatica non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.099897 e un p-value di 0.5831."
+
+# Steatosi epatica
+# steatosis_yesno_description <- "La presenza di steatosi epatica sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.386346 e un p-value di 0.0347."
+
+# Fibrosi >40% (1)
+# fibrosis_greater_40_percent_description <- "La fibrosi maggiore del 40% non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.015767 e un p-value di 0.9740."
+
+# Progressione o ricorrenza (1)
+# progression_or_recurrence_description <- "La progressione o la ricorrenza non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.400710 e un p-value di 0.4241."
+
+# Progressione o ricorrenza solo al fegato (1)
+# progression_or_recurrence_liveronly_description <- "La progressione o la ricorrenza solo al fegato sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -2.963285 e un p-value molto basso (< 2e-16)."
+
+# Vital status al momento della DFS del fegato (1)
+# vital_status_liver_DFS_description <- "Lo stato vitale al momento della DFS del fegato sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -2.574179 e un p-value molto basso (< 2e-16)."
+
+# Sesso (2)
+# sex_description <- "Il sesso non sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.105931 e un p-value di 0.5555."
+
+# Comorbilità maggiore (1)
+# major_comorbidity_description <- "La presenza di comorbilità maggiori sembra influenzare in modo significativo il rischio di evento, con un coefficiente di 0.456961 e un p-value di 0.0129."
+
+# Vital status al momento della DFS
+# vital_status_DFS_description <- "Lo stato vitale al momento della DFS sembra influenzare in modo significativo il rischio di evento, con un coefficiente di -0.309135 e un p-value di 0.6330."
+
+
+"Nel modello ridotto, sono state escluse le variabili che hanno mostrato un impatto non significativo sull'hazard, concentrando l'analisi solo sui fattori più rilevanti e significativi per la predizione della sopravvivenza."
+
+# Variabile age
+# Per ogni anno in più di età, c'è una diminuzione dell'1.0% del rischio di evento.
+# Il coefficiente di -0.010012 indica questa relazione.
+# Il p-value di 0.1331 suggerisce che questa relazione potrebbe essere casuale.
+
+# Variabile max_tumor_size
+# Per ogni unità di aumento nella dimensione massima del tumore, c'è un aumento del 2.11% del rischio di evento.
+# Il coefficiente di 0.020895 indica questa relazione.
+# Il p-value di 0.5089 non è significativo.
+
+# Variabile necrosis_percent
+# Per ogni unità di aumento nella percentuale di necrosi, c'è un aumento del 17.02% del rischio di evento.
+# Il coefficiente di 0.157217 indica questa relazione.
+# Il p-value di 0.6836 non è significativo.
+
+# Variabile mucin_percent
+# Per ogni unità di aumento nella percentuale di mucina, c'è una riduzione del 36.74% del rischio di evento.
+# Il coefficiente di -0.457972 indica questa relazione.
+# Il p-value di 0.3355 non è significativo.
+
+# Variabile node_positive_primary1
+# La presenza di metastasi nei linfonodi primari è associata a una diminuzione del 8.09% del rischio di evento.
+# Il coefficiente di -0.084367 indica questa relazione.
+# Il p-value di 0.6280 non è significativo.
+
+# Variabile synchronous_crlm1
+# La presenza di metastasi sincrone è associata a un aumento del 7.53% del rischio di evento.
+# Il coefficiente di 0.072632 indica questa relazione.
+# Il p-value di 0.6772 non è significativo.
+
+# Variabile clinrisk_stratified0
+# L'indicazione di rischio clinico stratificato a 0 è associata a un aumento del 15.66% del rischio di evento.
+# Il coefficiente di 0.154052 indica questa relazione.
+# Il p-value di 0.5010 non è significativo.
+
+# Variabile clinrisk_stratified1
+# L'indicazione di rischio clinico stratificato a 1 è associata a un aumento del 70.22% del rischio di evento.
+# Il coefficiente di 0.531899 indica questa relazione.
+# Il p-value di 0.0381 è significativo (*).
+
+# Variabile multiple_metastases1
+# La presenza di metastasi multiple è associata a una diminuzione del 13.68% del rischio di evento.
+# Il coefficiente di -0.135590 indica questa relazione.
+# Il p-value di 0.4470 non è significativo.
+
+# Variabile vital_status1
+# La morte è associata a un aumento del 162.35% del rischio di evento.
+# Il coefficiente di 1.623528 indica questa relazione.
+# Il p-value molto basso (<2e-16) indica che questa relazione è altamente significativa.
+
+# Variabile chemo_before_liver_resection1
+# L'indicazione di chemioterapia prima della resezione epatica è associata a un aumento del 23.64% del rischio di evento.
+# Il coefficiente di 0.236424 indica questa relazione.
+# Il p-value di 0.1609 non è significativo.
+
+# Variabile fibrosis_greater_40_percent1
+# La presenza di fibrosi maggiore del 40% è associata a un aumento del 9.32% del rischio di evento.
+# Il coefficiente di 0.093150 indica questa relazione.
+# Il p-value di 0.7221 non è significativo.
+
+# Variabile sex2
+# Il sesso femminile è associato a una diminuzione del 23.25% del rischio di evento rispetto al sesso maschile.
+# Il coefficiente di -0.267490 indica questa relazione.
+# Il p-value di 0.0927 tende alla significatività (*).
+
+### Confronto tra modelli:
+
+" 
+Concordance: Nel modello completo, il valore di concordanza è stato 0.863, mentre nel modello ridotto è risultato essere 0.691. Ciò suggerisce una maggiore precisione nel modello completo nel prevedere l'ordine di sopravvivenza.
+Likelihood Ratio Test (LRT): Nel modello completo, il LRT ha prodotto un valore di 336.8 con 24 gradi di libertà, mentre nel modello ridotto il valore di LRT è stato di 94.78 con 13 gradi di libertà. Entrambi i valori di p sono stati molto bassi (<2e-16 per il modello completo e 2e-14 per il modello ridotto), indicando una significativa superiorità del modello completo rispetto al modello ridotto.
+Wald Test: Nel modello completo, il test Wald ha prodotto un valore di 230.3 con 24 gradi di libertà, mentre nel modello ridotto il valore di Wald è stato di 86.02 con 13 gradi di libertà. Entrambi i valori di p sono stati molto bassi (<2e-16 per entrambi i modelli), suggerendo che i coefficienti nel modello completo e ridotto sono significativi.
+Score (logrank) Test: Nel modello completo, il test logrank ha evidenziato un valore di 269.2 con 24 gradi di libertà, mentre nel modello ridotto il valore di logrank è stato di 97.62 con 13 gradi di libertà. Entrambi i valori di p sono stati molto bassi (<2e-16 per entrambi i modelli), indicando una significativa differenza tra le distribuzioni di sopravvivenza dei gruppi di dati."
+```
+
+
+
+############ CONCLUSIONI
+
+Caratteristiche delle Variabili e Analisi Descrittiva nell'Analisi di Sopravvivenza per il Cancro al Colon-Retto 
+
+L'obiettivo principale di questa ricerca è stato individuare i fattori prognostici per predire il rischio di mortalità nei pazienti affetti da cancro del colon-retto, con potenziali implicazioni per il supporto decisionale clinico e il miglioramento degli esiti clinici.
+Le conclusioni di questo studio si focalizzano sull'analisi delle singole variabili e sulle loro implicazioni per la sopravvivenza dei pazienti affetti da cancro del colon-retto. Attraverso un'approfondita indagine di ciascuna variabile nel contesto della malattia, sono stati identificati fattori prognostici significativi che possono influenzare gli esiti clinici. Queste conclusioni offrono un'analisi dettagliata dell'impatto di ciascuna variabile sulla sopravvivenza dei pazienti e traggono conclusioni sulle implicazioni pratiche di tali risultati per la gestione e il trattamento della patologia.
+
+
+Variabili quantitative
+
+L'età dei pazienti affetti da cancro al colon rappresenta una variabile di rilievo nell'analisi di sopravvivenza, poiché può influenzare la risposta al trattamento e la prognosi complessiva. Pazienti più anziani potrebbero manifestare una minore tolleranza ai trattamenti aggressivi e una capacità di recupero inferiore dalla malattia, mentre pazienti più giovani potrebbero presentare una malattia più aggressiva. Questa diversità nell'età potrebbe dunque influenzare la durata della sopravvivenza e le opzioni terapeutiche disponibili.
+Nel campione analizzato, l'età dei pazienti mostra una distribuzione ampia, con una concentrazione maggiore intorno ai 60 anni. La media di età risulta essere di circa 59.65 anni, con una mediana di 61 anni e una moda di 74 anni. Questi dati suggeriscono che la maggior parte dei pazienti nello studio sia di età avanzata, sebbene sia presente una varietà di fasce di età tra i pazienti affetti da cancro al retto-colon.
+
+L’Indice di Massa Corporea (BMI) riflette la distribuzione del peso corporeo ed è un indicatore cru-ciale della salute generale dei pazienti affetti da cancro al colon. In questo contesto, un BMI più alto è stato associato a un aumento del rischio di complicazioni durante e dopo il trattamento. L'obesità può anche influenzare la risposta al trattamento e la prognosi complessiva, sottolineando l'importan-za di valutare attentamente il BMI per adattare l'approccio terapeutico e massimizzare i risultati cli-nici.
+Nel dataset preso in esame, la maggior parte dei pazienti è classificata come sovrappeso o obesa, con un BMI medio di circa 27.33. Questo suggerisce una prevalenza significativa di peso corporeo oltre ai livelli considerati nella norma. In particolare, il 34.52% è classificato come normale, mentre il 35.53% è sovrappeso e il 28.43% è obeso. Questi dati indicano la necessità di considerare attenta-mente il peso corporeo dei pazienti durante la pianificazione del trattamento e la gestione del cancro al colon, al fine di ottimizzare i risultati clinici e mitigare il rischio di complicazioni legate all'obesità.
+
+La dimensione del tumore è un elemento critico nell'analisi di sopravvivenza del cancro al colon, fornendo preziose informazioni sulla progressione e sull'aggressività della malattia. Tumori di dimensioni maggiori tendono ad essere associati a una prognosi meno favorevole, poiché possono indicare una maggiore invasività della malattia e una minore efficacia dei trattamenti. Il monitoraggio costante della dimensione del tumore nel tempo è fondamentale per valutare la risposta al trattamento e adattare le strategie terapeutiche di conseguenza, al fine di massimizzare le possibilità di successo clinico.
+Nel dataset attenzionato, la dimensione media massima del tumore è di circa 3.48. La distribuzione delle dimensioni riflette una varietà di casi, con il 55.90% dei tumori che presentano dimensioni comprese tra 0 e 3, il 31.79% tra 3 e 6, e il 12.31% con dimensioni superiori a 6. Dai dati analizzati, emerge che la maggior parte dei tumori nel campione presenta dimensioni inferiori a 6, suggerendo un potenziale per una prognosi più favorevole.
+
+La percentuale di risposta al trattamento rappresenta un parametro fondamentale per valutare l'efficacia delle terapie impiegate nel trattamento del cancro al colon. Una risposta completa o parziale al trattamento è generalmente associata a una prognosi più favorevole e a una maggiore sopravvivenza complessiva del paziente. Il monitoraggio costante della risposta del paziente nel corso del trattamento fornisce indicazioni preziose sulla progressione della malattia e sull'efficacia delle terapie in atto, consentendo agli operatori sanitari di adottare le strategie più appropriate per ottimizzare i risultati clinici.
+Nel dataset analizzato, la percentuale media di risposta totale è stata registrata intorno al 54%. La distribuzione delle percentuali di risposta evidenzia che il 29.89% dei soggetti presenta una percentuale compresa tra 20 e 40, il 35.33% tra 40 e 60, il 21.19% tra 60 e 80, e il 13.58% tra 80 e 100. Emerge, quindi, che la maggior parte dei pazienti nel campione presenta una percentuale di risposta al trattamento compresa tra il 40% e l’80%. Questo suggerisce un potenziale per una prognosi favorevole e una maggiore sopravvivenza complessiva del paziente, considerando che una risposta completa o parziale al trattamento è generalmente associata a tali risultati.
+
+La necrosi tumorale Una percentuale più elevata di necrosi nel tessuto tumorale è generalmente associata a una maggiore probabilità di risposta positiva al trattamento e a una prognosi più favorevole. La valutazione della necrosi tumorale riveste quindi un ruolo cruciale nel monitorare l'evoluzione della malattia e nell'ottimizzare le strategie terapeutiche volte a migliorare le prospettive di sopravvivenza dei pazienti.
+Nei dati analizzati, la percentuale media di necrosi è stata registrata intorno al 31%. La distribuzione delle percentuali di necrosi mostra che il 39.20% dei soggetti presenta una percentuale compresa tra 0 e 20, il 30.68% tra 20 e 40, il 19.32% tra 40 e 60, il 6.82% tra 60 e 80, e il 3.98% tra 80 e 100. Emerge che la maggior parte dei pazienti nel campione presenta una percentuale di necrosi tumorale compresa tra il 0% e il 40%, suggerendo potenzialmente una minore sopravvivenza.
+
+La presenza di mucina nei tumori del colon può essere un fattore di complicazione nella gestione della malattia, influenzando la diffusione del tumore e la risposta alle terapie. Essendo spesso associata a tumori più aggressivi, valutare la sua percentuale nel tessuto tumorale può fornire indicazioni utili per la pianificazione del trattamento e la valutazione della prognosi, permettendo una terapia più mirata.
+I dati analizzati hanno rivelato una percentuale media di mucina di circa 0.05. La distribuzione delle percentuali di mucina mostra che la maggior parte dei soggetti, pari al 61.76%, non presenta mucina nel tessuto tumorale. Tuttavia, l'11.76% presenta una percentuale compresa tra 0 e 20, l'11.76% tra 20 e 40 e l'8.82% tra 40 e 60. Dai dati emerge quindi che la maggior parte dei pazienti nel campione presenta una percentuale di mucina nel tessuto tumorale relativamente bassa, compresa tra il 0% e il 20%. Questo suggerisce una minore aggressività del tumore e potenzialmente una prognosi più favorevole per questi pazienti.
+
+La sopravvivenza complessiva rappresenta il periodo di tempo trascorso dal momento della diagnosi fino alla morte per qualsiasi causa ed è uno dei parametri più importanti nell'analisi di sopravvivenza del cancro al colon. Questo parametro fornisce una misura globale dell'efficacia del trattamento e della gestione della malattia nel corso del tempo. Monitorare la sopravvivenza complessiva può esse-re fondamentale per valutare l'efficacia delle terapie utilizzate e identificare eventuali fattori progno-stici che influenzano l'outcome clinico.
+I dati hanno rivelato una sopravvivenza media di circa 66.54 mesi. La distribuzione della sopravvi-venza complessiva mostra che il 10.15% dei soggetti ha una sopravvivenza compresa tra 0 e 20 mesi, il 20.81% tra 20 e 40 mesi, il 12.18% tra 40 e 60 mesi, il 18.78% tra 60 e 80 mesi, il 15.74% tra 80 e 100 mesi, e il 22.34% con una sopravvivenza superiore a 100 mesi. 
+Il 12.18% dei soggetti ha una sopravvivenza compresa tra 40 e 60 mesi, equivalente a un intervallo di circa 3 anni e 4 mesi fino a 5 anni, indicando una percentuale significativa di pazienti che soprav-vivono per almeno questo periodo di tempo dopo la diagnosi di cancro al colon.
+Inoltre, Il 45.69% dei soggetti nel dataset è deceduto, il restante 54.31% dei soggetti è ancora in vi-ta.
+
+I mesi senza malattia primaria rappresentano il periodo di tempo durante il quale il paziente rimane libero da progressione della malattia, un parametro cruciale nell'analisi di sopravvivenza del cancro al colon. 
+Lo studio condotto ha rivelato un tempo medio senza malattia di circa 41.20 mesi. La distribuzione dei mesi senza malattia mostra che il 46.19% dei soggetti ha un periodo libero da progressione pri-maria compreso tra 0 e 20 mesi, il 17.26% tra 20 e 40 mesi, e così via. In questo contesto viene evi-denziato che il 46.19% dei soggetti ha un periodo libero da progressione primaria compreso tra 0 e 20 mesi, indicando che una percentuale significativa dei pazienti sperimenta una remissione della malattia per un periodo inferiore a due anni dopo la diagnosi di cancro al colon.
+Si registrano correlazioni molto forti tra questa variabile ed i mesi di sopravvivenza senza malattia secondaria, con coefficienti di correlazione pari a 0.82.
+
+I mesi senza malattia del fegato rappresentano il periodo di tempo durante il quale il paziente rimane libero da progressione della malattia nel fegato, un parametro particolarmente rilevante nel contesto del cancro al colon, considerando che il fegato è un sito comune di metastasi per questa patologia. 
+I risultati dell'analisi hanno mostrato un tempo medio alla progressione del fegato di circa 53.24 me-si. La distribuzione dei mesi senza malattia del fegato indica che l'8.12% dei soggetti ha un periodo libero da progressione secondaria compreso tra 40 e 60 mesi, e così via. In questo caso, solo una pic-cola percentuale, pari all'8.12% dei soggetti, ha un periodo libero da progressione secondaria nel fe-gato compreso tra 40 e 60 mesi, suggerendo che la metastasi al fegato rappresenta una complicazione significativa nella gestione e nella prognosi del cancro al colon.
+ 
+
+Variabili Categoriali
+
+Genere
+Il sesso dei pazienti riveste un ruolo importante nell'analisi di sopravvivenza, poiché potrebbero esistere differenze biologiche e socio-culturali che influenzano la prognosi e la risposta al trattamento tra i sessi. Nel campione analizzato, la distribuzione tra i sessi è equilibrata, con il 59.39% dei soggetti di sesso maschile e il 40.61% di sesso femminile. Questa composizione riflette fedelmente la varietà dei pazienti inclusi nello studio, sottolineando l'equivalenza di rappresentanza tra i due sessi. 
+
+Comorbilità maggiori
+Le comorbilità maggiori, rappresentate dalla presenza di altre condizioni mediche significative oltre al cancro al colon, possono influenzare la prognosi e la gestione clinica della malattia, aumentando il rischio di complicazioni e di mortalità. Nel dataset analizzato, il 44.67% dei pazienti non presenta alcuna comorbidità maggiore, mentre il restante 55.33% ha almeno una comorbidità di questo tipo. Ciò suggerisce che una parte considerevole dei pazienti affetti da cancro al colon presenta altre condizioni mediche significative che possono influenzare il loro percorso di cura. 
+
+Linfonodi positivi al momento della diagnosi
+La presenza di linfonodi positivi al momento della diagnosi rappresenta un importante fattore prognostico nel cancro al colon, poiché indica la presenza di metastasi linfonodali e il potenziale coinvolgimento del sistema linfatico nella diffusione del tumore. Nel dataset analizzato, il 64.97% dei casi non presenta linfonodi positivi, mentre il 35.03% dei casi evidenzia la presenza di linfonodi positivi al momento della diagnosi. Questi dati suggeriscono che una percentuale significativa di pazienti già sviluppa metastasi linfonodali alla diagnosi, il che potrebbe influenzare la prognosi e le opzioni terapeutiche disponibili. 
+
+Metastasi sincrone epatiche
+Le metastasi sincrone epatiche nel carcinoma del colon-retto possono indicare uno stadio più avanzato della malattia e una prognosi generalmente peggiore. Nel dataset analizzato, il 43.65% dei soggetti non presenta metastasi sincrone, mentre il 56.35% dei casi mostra la presenza di metastasi sincrone al momento della diagnosi. Questo dato evidenzia che una parte significativa dei pazienti già sviluppa metastasi al momento della diagnosi iniziale, il che può influenzare sia la prognosi che le opzioni di trattamento disponibili. 
+
+Presenza di metastasi multiple 
+Indica la diffusione del tumore a più siti nel corpo, generalmente associata a una prognosi peggiore. Nel dataset analizzato, il 42.13% dei casi non presenta metastasi multiple, mentre il 57.87% mostra la presenza di metastasi in più siti. Questo suggerisce che una parte significativa dei pazienti ha già sviluppato metastasi in diversi siti nel corpo, il che può influenzare negativamente la loro prognosi. 
+
+Classe di rischio stratificata 
+Questa si basa su variabili cliniche e patologiche che influenzano la prognosi del cancro al colon, aiu-tando a identificare sottogruppi di pazienti con prognosi diversa e guidare le decisioni terapeutiche. Nel dataset, la maggioranza dei pazienti (59.39%) appartiene alla classe di rischio 0 (basso), seguita dalla classe di rischio 1 (25.89%) e la classe di rischio 3 (14.72%). Questo suggerisce che i pazienti sono stati suddivisi in diverse classi di rischio in base alle loro caratteristiche cliniche e patologiche. 
+
+Presenza di malattia extraepatica 
+questa, indica la diffusione del cancro al di fuori del fegato, il che può influenzare negativamente la prognosi. Nel dataset analizzato, la stragrande maggioranza degli individui (91.37%) non presenta malattia extraepatica, mentre solo l'8.63% mostra questa condizione. Ciò suggerisce che la maggior parte dei pazienti non ha ancora sviluppato metastasi in altri siti del corpo al di fuori del fegato. 
+
+Chemioterapia somministrata prima della resezione epatica
+Tale variabile, può influenzare la risposta al trattamento e la prognosi complessiva nei pazienti con cancro al colon metastatico al fegato. Nel dataset, il 38.07% dei pazienti non ha ricevuto chemiote-rapia prima della resezione epatica, mentre il 61.93% dei pazienti ha ricevuto questo trattamento. Ciò suggerisce che la maggior parte dei pazienti ha ricevuto una terapia chemioterapica come parte del loro percorso di trattamento. 
+
+Steatosi epatica
+La presenza di steatosi epatica, ovvero l'accumulo di grasso nel fegato, può influenzare la progressione e la prognosi del cancro al colon metastatico al fegato. Nel dataset analizzato, il 65.48% dei soggetti non ha steatosi epatica, mentre il 34.52% dei soggetti presenta questa condizione. Ciò suggerisce che una percentuale significativa dei pazienti potrebbe avere un coinvolgimento del fegato con steatosi.
+
+Fibrosi maggiore del 40% 
+La fibrosi tumorale del colon-retto è la formazione di tessuto fibrotico nel tumore stesso, indicativa di un'alterazione nel microambiente tumorale. Una fibrosi tumorale maggiore del 40% può suggerire una maggiore invasività del tumore. Nel dataset, l'87.82% dei casi non presenta fibrosi tumorale maggiore del 40%, mentre il 12.18% dei casi ha questa condizione. Ciò suggerisce che una minoranza dei pazienti nel campione ha un tumore con una significativa componente fibrotica. 
+
+Progressione primaria 
+La progressione o la recidiva del cancro al colon metastatico può influenzare significativamente la sopravvivenza dei pazienti, poiché indica il fallimento del trattamento o la ricomparsa della malattia dopo un periodo di remissione.  Nel dataset, il 33.50% dei soggetti non ha avuto progressione o recidiva, mentre il 66.50% dei soggetti ha avuto questa condizione. Ciò suggerisce che una percentuale significativa dei pazienti nel campione ha sperimentato progressione o recidiva della malattia. 
+
+Progressione secondaria
+La presenza di progressione o recidiva limitata al fegato indica una maggiore localizzazione della malattia e può influenzare la gestione clinica e la prognosi dei pazienti con cancro al colon metastati-co.  Nel dataset, il 58.88% dei casi non ha avuto progressione o recidiva limitata al fegato, mentre il 41.12% dei casi ha avuto questa condizione. Ciò suggerisce che una percentuale significativa dei pa-zienti nel campione ha sperimentato una localizzazione della malattia nel fegato. 
+
+Stato vitale nel periodo libero da malattia primaria
+Lo stato vitale libero da malattia primaria riflette la sopravvivenza dei pazienti dopo un trattamento specifico che mira a prevenire la recidiva della malattia primaria, come il cancro al colon. Nel data-set, il 29.84% dei soggetti non è deceduto durante il periodo libero da malattia primaria, mentre il 70% dei soggetti è deceduto durante questo periodo. Ciò indica che una percentuale significativa dei pazienti nel campione non ha avuto successo nel raggiungere una sopravvivenza libera da malat-tia primaria. 
+
+Stato vitale nel periodo libero da malattia secondaria
+Lo stato vitale libero da malattia epatica riflette la sopravvivenza dei pazienti dopo un trattamento specifico che mira a prevenire la recidiva della malattia epatica dopo la resezione epatica. Nel dataset, il 38.07% degli individui non è deceduto durante il periodo libero da malattia epatica, mentre il 61.93% degli individui è deceduto durante questo periodo. Ciò indica che una percentuale significativa dei pazienti nel campione non ha avuto successo nel raggiungere una sopravvivenza libera da malattia epatica. 
+
+
+
+Valutazione dei Fattori Prognostici nel Cancro al Colon-Retto mediante Analisi di Sopravvivenza
+
+Nel contesto dello studio sul cancro al retto-colon, le analisi di sopravvivenza hanno evidenziato l'importanza dei test di Log Rank e della regressione di Cox. Il test di Log Rank ha rivelato differenze statisticamente significative nella sopravvivenza tra i diversi gruppi di pazienti, fornendo una panoramica iniziale delle dinamiche di sopravvivenza all'interno del campione. Inoltre, la regressione di Cox ha identificato i fattori predittivi indipendenti associati alla sopravvivenza nel lungo termine, dopo aver controllato per altri potenziali confondimenti.
+Questi risultati offrono un'importante comprensione delle variabili che influenzano la sopravvivenza nei pazienti affetti da cancro al retto-colon. L'identificazione di questi fattori potrebbe svolgere un ruolo cruciale nello sviluppo di strategie preventive, terapeutiche e di follow-up personalizzate per migliorare l'outcome clinico e la qualità di vita dei pazienti.
+Inoltre, la conoscenza dei fattori di prognosi potrebbe contribuire a informare le decisioni cliniche riguardanti le opzioni terapeutiche più appropriate e a guidare la ricerca futura nel campo della ge-stione del cancro al retto-colon.
+
+
+Risultati più significativi del Test di Log Rank
+
+
+L'età dei pazienti mostra un'associazione significativa con la sopravvivenza (p < 2e-16), il che indica che l'età influisce sul rischio di mortalità. 
+
+Anche il BMI mostra un'associazione significativa con la sopravvivenza (p < 2e-16), suggerendo che il peso corporeo influisce sul rischio di mortalità. Questo potrebbe riflettere il ruolo dell'obesità o della malnutrizione nell'influenzare la prognosi dei pazienti affetti da cancro al colon-retto.
+
+La dimensione massima del tumore è significativamente associata alla sopravvivenza (p < 2e-16), indicando che tumori più grandi possono aumentare il rischio di mortalità. Questo sottolinea l'importanza della stadiazione del tumore e della gestione dei pazienti con tumori di dimensioni diverse.
+
+La percentuale di mucina mostra un'associazione significativa con la sopravvivenza (p = 2e-07), indicando che il muco può influenzare il rischio di mortalità. Questo suggerisce che la presenza di muco nel tumore potrebbe avere implicazioni prognostiche significative.
+
+I mesi complessivi di sopravvivenza ed i mesi liberi da progressione primaria sono fortemente associate alla sopravvivenza (p < 2e-16), confermando che il tempo di sopravvivenza è influenzato da molteplici fattori, inclusi fattori clinici, patologici e terapeutici. 
+
+Per la malattia extraepatica il test, mostra una differenza significativa nella sopravvivenza tra i pazienti con e senza malattia extraepatica (p = 4e-04), con una maggiore sopravvivenza nei pazienti senza malattia extraepatica. Ciò suggerisce che la presenza di malattia extraepatica può influenzare negativamente la sopravvivenza.
+
+Il risultato della progressione primaria mostra una differenza significativa nella sopravvivenza tra i pazienti con e senza progressione o recidiva (p = 3e-05), con una peggiore sopravvivenza nei pazienti che hanno sperimentato la progressione o la recidiva. Ciò suggerisce che la presenza di progressione o recidiva è associata a una ridotta sopravvivenza.
+
+Il risultato sulla progressione secondaria, indica una differenza significativa nella sopravvivenza tra i pazienti con e senza progressione o recidiva solo a livello epatico (p = 3e-05), con una peggiore so-pravvivenza nei pazienti con progressione o recidiva epatica. Questo suggerisce che la progressione o la recidiva limitata al fegato è associata a una ridotta sopravvivenza.
+
+Per lo stato vitale durante il periodo libero da malattia primaria, il  test mostra un p-value = 1e-12, suggerendo che il periodo libero da malattia secondaria al fegato contribuisce positivamente alla durata complessiva della sopravvivenza.
+
+Per lo stato vitale durante il periodo libero da malattia secondaria, il test mostra un p-value = 4e-06, indicando che il periodo libero da malattia primaria contribuisce positivamente ai mesi totali di sopravvivenza.
+
+
+Risultati più significativi della Regressione di Cox
+
+Età:
+L'analisi mostra che un aumento dell'età è associato a una diminuzione significativa della sopravvivenza complessiva. Il coefficiente negativo (-0.015890) e il p-value significativo (0.0298) indicano che l'età influisce negativamente sulla prognosi dei pazienti affetti da cancro al colon.
+
+Months to Liver DFS Progression:
+Un tempo più lungo libero da malattia epatica è fortemente associato a una maggiore sopravvivenza complessiva. Il coefficiente negativo (-0.070484) e il p-value altamente significativo (< 2e-16) sug-geriscono che un aumento del tempo libero da malattia epatica è fortemente associato a una diminu-zione della mortalità.
+
+Clinrisk Stratified (1):
+L'analisi mostra un aumento significativo del rischio di evento nei pazienti con una valutazione del rischio più elevata. Il coefficiente di 0.716578 indica un aumento del 71.66% nel rischio di evento, con un p-value di 0.0108, che conferma la significatività statistica di questa relazione.
+
+Extrahep Disease:
+La presenza di malattia extraepatica è associata a un aumento significativo del rischio di mortalità. Il coefficiente positivo (1.415351) e il p-value altamente significativo (3.39e-06) indicano che la malat-tia extraepatica è fortemente associata a un aumento del rischio di mortalità nel cancro al colon.
+
+Progression or Recurrence Liver Only:
+La progressione o la ricorrenza della malattia limitata al fegato è fortemente associata a un aumento del rischio di mortalità. Il coefficiente negativo (-2.963285) e il p-value altamente significativo (1.19e-15) indicano che la progressione o la ricorrenza della malattia epatica è fortemente associata a un aumento del rischio di mortalità.
+
+Vital Status Liver DFS:
+I cambiamenti nello stato vitale in relazione alla sopravvivenza libera da malattia al fegato sono as-sociati a una diminuzione della sopravvivenza complessiva. Il coefficiente negativo (-2.574179) e il p-value altamente significativo (2.40e-05) indicano che il cambiamento dello stato vitale è associato a una diminuzione della sopravvivenza complessiva.
+
+Major Comorbidity:
+La presenza di comorbilità maggiori influisce negativamente sulla sopravvivenza complessiva. Il coefficiente positivo (0.456961) e il p-value significativo (0.0129) indicano che la presenza di co-morbilità maggiori può influenzare negativamente la sopravvivenza complessiva dei pazienti con cancro al colon.
+
+
+Analisi di sopravvivenza: Kaplan-Meier e Modello di Cox per la valutazione della durata della sopravvivenza
+
+Sopravvivenza Complessiva
+Iniziando con la variabile più significativa di tutto il dataset, si nota che la curva di sopravvivenza di Kaplan-Meier rivela che il 42% dei pazienti inclusi nello studio è deceduto a causa della malattia, mentre il restante 58% è sopravvissuto. La media di sopravvivenza complessiva dei pazienti è stata di 46 mesi, con una deviazione standard di 22 mesi. Questo suggerisce una variazione significativa nella sopravvivenza tra i pazienti.
+
+Fascia d'Età
+Analizzando la sopravvivenza in relazione all'età, emerge che i soggetti più giovani, sotto i 40 anni, presentano un'elevata probabilità di sopravvivenza iniziale, con il 94.7% dei pazienti ancora vivi a soli 7.37 mesi dall'inizio dell'osservazione. Tuttavia, nel corso del tempo, questa probabilità diminuisce, stabilendosi al 33.7% a 91.83 mesi. Per la fascia d'età compresa tra i 40 e i 60 anni, i soggetti mostrano inizialmente un'ancora maggiore probabilità di sopravvivenza, del 98.6% a 10.5 mesi, ma anche in questo caso si osserva un declino nel tempo, con una probabilità del 33.7% a 108.5 mesi. Infine, i soggetti oltre i 60 anni evidenziano un'elevata sopravvivenza all'inizio dell'osservazione, con il 99.0% dei pazienti ancora vivi a 3.77 mesi, che tuttavia si attenua nel tempo ma raggiunge comunque il 41.8% a 102.9 mesi.
+
+Steatosi Epatica
+Nel gruppo senza steatosi epatica, la probabilità di sopravvivenza è molto elevata all'inizio dell'osservazione, con il 99.2% dei pazienti ancora vivi a 3.77 mesi. Tuttavia, nel corso del tempo, questa probabilità diminuisce gradualmente, raggiungendo il 35.5% a 102.60 mesi. Passando al gruppo con steatosi, anche se la probabilità di sopravvivenza è leggermente inferiore rispetto al gruppo senza steatosi, rimane comunque significativamente alta, con il 98.5% dei pazienti ancora vivi a 5.53 mesi e il 47.0% a 102.90 mesi.
+
+Percentuale di Necrosi Tumorale
+L'analisi della sopravvivenza in relazione alla percentuale di necrosi tumorale rivela che i soggetti con una percentuale di necrosi compresa tra 0 ed il 50% non registrano eventi durante il periodo di osservazione, con un tempo medio di sopravvivenza di circa 81.58 mesi. Al contrario, nel gruppo con una percentuale di necrosi compresa tra il 50 ed il 100%, si registrano eventi di morte, con un tempo medio di sopravvivenza leggermente più basso, di circa 47.79 mesi. La curva di sopravvivenza mostra un aumento più rapido della sopravvivenza nel corso del tempo per i soggetti con una percentuale di necrosi più bassa, ma una stabilità maggiore per quelli con una percentuale di necrosi più alta nel lungo termine.
+
+Indice di Massa Corporea (BMI):
+L'analisi della sopravvivenza in base al BMI rivela che i soggetti con un BMI Overweight (sovrappeso) presentano una minore sopravvivenza nel lungo periodo rispetto a quelli con un BMI Normal weight (peso normale) e Obese (obeso). Nonostante ciò, il gruppo Overweight mostra una probabilità di sopravvivenza più elevata soprattutto tra il 20° e il 90° mese rispetto ai soggetti Obese, ma inferiore rispetto ai soggetti Normal weight oltre i 120 mesi. Non sono stati registrati eventi per i soggetti Underweight (sottopeso) durante il periodo di osservazione.
+
+Malattia Extraepatica:
+L'analisi di sopravvivenza mostra che i pazienti senza malattia extraepatica presentano una maggiore probabilità di sopravvivenza rispetto a quelli con tale comorbilità. La probabilità di sopravvivenza nel gruppo senza malattia extraepatica è più alta per tutti gli intervalli di tempo considerati, suggerendo una maggiore sopravvivenza nel lungo termine. Al contrario, i pazienti con malattia extraepatica mostrano una probabilità di sopravvivenza più bassa, con un picco del 77.54% verso la fine del periodo osservato.
+
+Risposta al Trattamento:
+L'analisi di sopravvivenza per i diversi gruppi di risposta al trattamento mostra che i pazienti con risposta High hanno inizialmente una percentuale di sopravvivenza molto elevata, ma nel tempo si osserva una graduale diminuzione della sopravvivenza. Al contrario, i pazienti con risposta Low mostrano una tendenza simile, con una buona sopravvivenza iniziale che diminuisce nel corso del tempo. Tuttavia, sembra che il primo gruppo mantenga una sopravvivenza leggermente migliore rispetto al secondo gruppo nel lungo termine, anche se entrambi mostrano una tendenza alla diminuzione della sopravvivenza nel tempo.
+
+Comorbilità:
+L'analisi di sopravvivenza per i pazienti con e senza comorbilità mostra che i soggetti senza comorbilità hanno una maggiore probabilità di sopravvivenza rispetto a quelli con comorbilità. Nel gruppo senza comorbilità, la sopravvivenza rimane generalmente elevata nel corso del tempo, con una buona tenuta nel tempo nonostante la malattia. Al contrario, i pazienti con comorbilità mostrano una diminuzione costante della sopravvivenza nel tempo, evidenziando un impatto significativo delle comorbilità sulla sopravvivenza dei pazienti.
+
+
+
+Analisi Kaplan-Meier e Regressione di Cox nell'Esplorare l'Effetto della Chemioterapia nel Cancro al Colon-Retto
+
+All'interno del contesto del cancro al colon-retto, la valutazione dell'efficacia della chemioterapia è di fondamentale importanza per determinare le strategie terapeutiche ottimali. Nel presente studio, sono state condotte quattro analisi di Regressione di Cox e quattro analisi Kaplan-Meier, ciascuna indirizzata a specifiche ipotesi sull'effetto della chemioterapia sui pazienti affetti da questa patolo-gia. L'obiettivo è stato quello di investigare in modo approfondito l'influenza della chemioterapia sulla progressione della malattia, lo stato vitale e la sopravvivenza nel cancro al colon-retto. Le se-guenti conclusioni sintetizzano i risultati emersi da queste analisi, offrendo nuove prospettive e indi-cazioni per la pratica clinica e la ricerca futura in questo campo.
+
+
+I e II ipotesi COX + K-M
+
+Nel contesto della sopravvivenza dei pazienti sottoposti a intervento chirurgico per il trattamento del cancro, emerge un quadro complesso influenzato dalla presenza di chemioterapia e dalla recidiva della malattia. Nei casi in cui non vi è chemioterapia e nessuna recidiva della malattia, si osserva un'alta sopravvivenza superiore al 95% fino a circa 27 mesi dopo l'intervento chirurgico. Anche in presenza di recidiva, ma senza coinvolgimento del fegato, la sopravvivenza rimane significativamen-te alta, con una percentuale superiore al 90% fino a circa 17 mesi dopo l'intervento chirurgico. Tutta-via, quando la recidiva coinvolge il fegato, sia con o senza chemioterapia, si osserva una diminuzione significativa della sopravvivenza nel tempo.
+Per quanto riguarda l'efficacia della chemioterapia pre-operatoria, i risultati statistici non evidenziano un effetto significativo sulla progressione della malattia. Tuttavia, le osservazioni grafiche suggeri-scono un possibile beneficio in termini di sopravvivenza per i pazienti trattati con chemioterapia. Questo contrasto potrebbe derivare da varie ragioni, tra cui le limitazioni dei modelli statistici nel considerare la complessità dei dati clinici o la presenza di variabili non incluse nel modello di regres-sione. Sottolinea l'importanza di ulteriori ricerche per comprendere appieno la relazione tra la che-mioterapia pre-operatoria e la sopravvivenza dei pazienti affetti da cancro al colon e al fegato.
+
+
+III ipotesi COX + K-M
+
+La variabile chemo_before_liver_resection (1) mostra un coefficiente di 0.2976 con una significativi-tà marginale (p = 0.0463). Ciò indica che i pazienti trattati con chemioterapia hanno una probabilità significativamente maggiore di sopravvivenza libera da malattia primaria rispetto a quelli non trattati.
+Graficamente, i due gruppi di soggetti, uno sottoposto a chemioterapia e l'altro no, mostrano una partenza simile, ma con una discrepanza che diventa più accentuata tra il 25° e il 75° mese. È interes-sante notare che, nonostante una probabilità di sopravvivenza iniziale simile, i pazienti che non han-no ricevuto chemioterapia prima dell'intervento al fegato sembrano avere una sopravvivenza più bre-ve senza malattia primaria. Oltre i cento mesi, queste differenze si annullano e le due curve si ricon-giungono.
+Tuttavia, nel complesso, i risultati numerici e grafici sembrano convergere nel suggerire un effetto positivo della chemioterapia sulla sopravvivenza libera da malattia primaria.
+
+IV ipotesi COX + K-M
+
+Coefficiente e p-value per la variabile chemo_before_liver_resection1: Il coefficiente associato a questo predittore è 0.4253, con un p-value significativo di 0.0047. Questo indica che i soggetti sottoposti a chemioterapia hanno una probabilità significativamente maggiore di avere una durata più lunga di mesi liberi dalla malattia primaria rispetto a quelli che non hanno ricevuto la chemioterapia. Quindi, la chemioterapia potrebbe essere associata ad una maggiore durata dei mesi liberi dalla malattia primaria.
+
+Graficamente, i due gruppi di soggetti, uno sottoposto a chemioterapia e l'altro no, mostrano una partenza simile, ma con una netta discrepanza nei primi cento mesi di sopravvivenza senza malattia secondaria. È interessante notare che, nonostante una probabilità di sopravvivenza iniziale simile, i pazienti che non hanno ricevuto chemioterapia prima dell'intervento al fegato sembrano vivere meno a lungo senza malattia secondaria. Oltre i cento mesi, queste differenze si annullano e le due curve si ricongiungono.
+
+Tuttavia, nel complesso, i risultati numerici e grafici sembrano convergere nel suggerire un effetto positivo della chemioterapia sulla sopravvivenza libera da malattia primaria.
+	
+
+Conferma delle Ipotesi nell'Analisi di Sopravvivenza
+
+Nelle seguenti conclusioni, verranno esaminate le ipotesi formulate inizialmente e verrà valutato se i risultati dell'analisi di sopravvivenza confermano o respingono tali ipotesi 
+
+Età: L'analisi ha confermato l'ipotesi alternativa (H1), evidenziando un aumento significativo del ri-schio di mortalità correlato al cancro al colon con l'avanzare dell'età. Tuttavia, è importante conside-rare che il cancro talvolta può manifestarsi in forme più aggressive nei soggetti giovani, fattore che potrebbe aver influenzato i risultati osservati.
+Sesso: I risultati relativi al sesso non hanno supportato l'ipotesi alternativa (H1) riguardante il rischio di mortalità associato al cancro al colon tra i sessi. Non è stata riscontrata una differenza significati-va nel rischio di mortalità tra uomini e donne, nonostante in alcune circostanze sembri esserci una prevalenza femminile.
+
+Indice di Massa Corporea (BMI): Gli esiti confermano l'ipotesi alternativa, indicando un significa-tivo aumento del rischio di mortalità correlato al cancro al colon all'aumentare dell'Indice di Massa Corporea (BMI).
+Maggiori Comorbilità: L'analisi ha confermato l'ipotesi alternativa, rilevando che la presenza di comorbidità significative è associata a un significativo aumento del rischio di mortalità correlato al cancro al colon.
+
+Steatosi Epatica: I risultati confermano l'ipotesi alternativa, indicando un'associazione significativa con un aumento del rischio di mortalità correlato al cancro al colon. È importante notare che questa associazione potrebbe non essere categorica e ulteriori indagini potrebbero essere necessarie per valu-tare appieno l'impatto della steatosi epatica.
+Linfonodi Positivi Primari: Gli esiti supportano l'ipotesi alternativa, evidenziando un'associazione significativa con una minore sopravvivenza correlata al cancro al colon. Tuttavia, è importante notare che questa associazione sembra essere modesta e ulteriori studi potrebbero essere necessari per de-terminare appieno l'entità del suo impatto.
+
+Metastasi Sincrone Epatiche: I risultati finali confermano l'ipotesi alternativa (H1), indicando un'associazione tra la presenza di metastasi sincrone e una minore sopravvivenza correlata al cancro al colon. Tuttavia, è importante notare che l'associazione viene considerata borderline.
+Metastasi Multiple: L'analisi conferma l'ipotesi alternativa (H1), evidenziando un'associazione tra la presenza di metastasi multiple e una minore sopravvivenza correlata al cancro al colon. È importante notare che questa associazione potrebbe essere considerata debole.
+
+Dimensione Massima del Tumore: I risultati confermano l'ipotesi nulla, indicando che la dimen-sione del tumore non influisce sulla sopravvivenza nel cancro al colon.
+Presenza di Malattia Extraepatica: Viene confermata l'ipotesi alternativa, indicando un'associa-zione significativa con una minore sopravvivenza nel cancro al colon, evidenziando un impatto rile-vante e forte di questa variabile.
+
+Per la percentuale di fibrosi maggiore del 40%, i risultati confermano l'ipotesi nulla, suggerendo che la presenza di una percentuale di fibrosi superiore al 40% non ha un impatto significativo sulla sopravvivenza nel cancro al colon.
+Percentuale di Mucina: I risultati supportano l'ipotesi nulla, indicando che la presenza di una maggiore percentuale di mucina non è associata a una riduzione significativa della sopravvivenza nel cancro al colon.
+
+Percentuale di Necrosi nei Tumori: Gli esiti confermano l'ipotesi alternativa, suggerendo che una maggiore percentuale di necrosi nei tumori è associata a una minore sopravvivenza nel cancro al co-lon.
+Classificazione del Rischio di Mortalità: I risultati relativi alla classificazione del rischio di mortali-tà non mostrano una differenza significativa tra i pazienti classificati nelle categorie a rischio mag-giore e quelli nelle categorie a rischio più basso, supportando l'ipotesi nulla.
+
+Percentuale di Risposta Totale: Nonostante un andamento borderline suggerisca un'associazione tra una maggiore percentuale di risposta totale al trattamento e una maggiore sopravvivenza nel can-cro al colon, i risultati complessivi non forniscono evidenza sufficiente per respingere l'ipotesi nulla (H0). Ciò indica che non vi è un'associazione significativa tra queste variabili, sebbene si possa nota-re una tendenza nei dati analizzati.
+Progressione o Ricorrenza del Tumore Primario: I risultati confermano l'ipotesi alternativa (H1), indicando che la progressione o la ricorrenza del tumore primario è associata a una minore sopravvi-venza nel cancro al colon.
+
+Progressione o Ricorrenza del Tumore Secondario al Fegato: Analogamente, i risultati confer-mano l'ipotesi alternativa (H1), evidenziando che la progressione o la ricorrenza del tumore seconda-rio al fegato è associata a una minore sopravvivenza nel cancro al colon.
+Sopravvivenza Libera da Malattia Primaria (months_to_DFS_progression): I risultati confermano l'ipotesi alternativa (H1), indicando che un periodo più lungo di sopravvivenza libera da malattia primaria è associato a una maggiore sopravvivenza nel cancro al colon.
+
+Sopravvivenza Libera da Malattia Secondaria (months_to_liver_DFS_progression): I risultati confermano l'ipotesi alternativa (H1), evidenziando che un tempo più lungo di sopravvivenza libera da malattia secondaria è associato a una maggiore sopravvivenza nel cancro al colon.
+Chemioterapia Pre-operatoria nel Cancro al Colon: L'ipotesi nulla (H0) viene supportata. Non c'è evidenza che la chemioterapia pre-operatoria influisca sulla progressione della malattia nel cancro al colon. Tuttavia, ci sono indicazioni che la chemioterapia pre-operatoria potrebbe avere un effetto positivo sulla sopravvivenza dei pazienti, come suggerito dalle osservazioni grafiche.
+
+Chemioterapia Pre-operatoria nel Cancro Secondario Epatico: Anche in questo caso, l'ipotesi nulla (H0) viene confermata. Non vi è alcuna evidenza che la chemioterapia pre-operatoria influisca sulla progressione della malattia nel cancro secondario epatico. Tuttavia, come nel caso precedente, le osservazioni grafiche suggeriscono un potenziale beneficio della chemioterapia pre-operatoria sulla sopravvivenza dei pazienti.
+
+Chemioterapia Pre-operatoria e Sopravvivenza Senza Malattia Primaria nel Cancro al Colon: Basandosi sui risultati analizzati, emerge che la chemioterapia pre-operatoria ha un impatto positivo sulla sopravvivenza senza malattia primaria nel cancro al colon. Pertanto, l'ipotesi alternativa (H1), che sostiene l'effetto positivo della chemioterapia pre-operatoria sulla sopravvivenza senza malattia primaria, risulta essere supportata.
+
+Chemioterapia Pre-operatoria e Sopravvivenza Senza Malattia Secondaria al Fegato: Basandosi sui risultati analizzati, emerge che la chemioterapia pre-operatoria ha un impatto positivo sulla sopravvivenza senza malattia secondaria al fegato. Pertanto, l'ipotesi alternativa (H1), che sostiene l'effetto positivo della chemioterapia pre-operatoria sulla sopravvivenza senza malattia secondaria al fegato, risulta essere supportata.
+
+In conclusione, mentre alcuni fattori di rischio sono stati confermati, altri aspetti richiedono una valutazione più approfondita. La ricerca continua è fondamentale per migliorare la gestione e il trattamento del cancro al retto-colon, garantendo una migliore qualità di vita e una maggiore sopravvivenza per i pazienti affetti da questa malattia.
+
+
+
+
+
