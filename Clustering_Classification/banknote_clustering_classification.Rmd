@@ -1,0 +1,1861 @@
+---
+title: "Analisi delle Caratteristiche delle Banconote"
+author: "Guarino Renata"
+date: "2024-04-10"
+output: 
+  word_document:
+    fig_caption: yes
+---
+
+
+![](D:/Disco D/Master AI e DataScience/Verifiche/Ingrassia-Tormarchio/banconote-false.jpg)
+
+```{r include_file, echo=TRUE}
+
+
+# Introduzione
+
+# Nel contesto dell'analisi finanziaria e della sicurezza delle transazioni, identificare le banconote autentiche è di fondamentale importanza per prevenire frodi e garantire la fiducia nelle transazioni finanziarie. L'avanzamento della tecnologia ha reso sempre più sofisticata la produzione di banconote contraffatte, rendendo necessario l'impiego di metodologie avanzate per distinguere con precisione le differenze con le banconote originali.
+
+# Questo studio si è focalizzato sull'esplorazione delle caratteristiche fisiche specifiche delle banconote, tra cui lunghezza, larghezza e dimensioni delle parti (superiore, inferiore, destra e sinistra), al fine di individuare le differenze essenziali tra le banconote originali e contraffatte. 
+
+# Dopo aver caricato e visualizzato il dataset, sono state eseguite diverse analisi e metodologie:
+
+# Analisi statistica dettagliata per valutare la distribuzione e le differenze delle caratteristiche fisiche tra banconote genuine e contraffatte, incluso il calcolo delle statistiche di base e l'applicazione di test di normalità come il test di Shapiro-Wilk e il test di omoschedasticità di Bartlett.
+
+# Utilizzo di tecniche avanzate come l'analisi delle componenti principali (PCA) e delle corrispondenze (CA) per esplorare la struttura dei dati e identificare i principali fattori discriminanti tra banconote genuine e contraffatte. Applicazione di metodi come le Mixture Gaussiane e gli scatterplot matrix per visualizzare approfonditamente i dati e identificare relazioni tra le variabili.
+
+# Successivamente, è stato impiegato l'algoritmo di clustering K-Means per individuare pattern distintivi e cluster nei dati, con valutazione dell'efficacia attraverso l'indice di validità Silhouette.
+
+# Infine, è statto messo a punto lo sviluppo di modelli predittivi utilizzando l'analisi discriminante lineare (LDA) e quadratica (QDA), con valutazione delle prestazioni tramite confusion matrix, ROC e cross-validation per distinguere tra diversi tipi di banconote.
+
+# L'obiettivo principale di questo studio è contribuire alla creazione di sistemi di sicurezza finanziaria più robusti, fornendo un'analisi approfondita delle differenze fisiche tra banconote originali e contraffatte. 
+
+# Le conclusioni si concentreranno sull'efficacia dei modelli e delle tecniche analitiche impiegate per identificare e distinguere con precisione i due tipi di banconote, contribuendo così alla protezione dagli attacchi finanziari associati alle transazioni con banconote contraffatte.
+
+
+
+# Carica le librerie necessarie
+library(mclust)
+
+
+"Analisi preliminari del dataset" 
+
+# Carica il dataset delle banconote
+data(banknote)
+
+# Visualizza le prime righe e le informazioni sulle variabili nel dataset delle banconote
+head(banknote)
+str(banknote)
+
+# Numero di variabili e osservazioni nel dataset
+num_variabili <- ncol(banknote)
+num_osservazioni <- nrow(banknote)
+print(paste("Numero di variabili nel dataset:", num_variabili))
+print(paste("Numero di osservazioni nel dataset:", num_osservazioni))
+
+# Visualizza un riassunto completo del dataset
+summary(banknote)
+
+# Visualizza il dataset in una finestra separata
+View(banknote)
+
+# Controlla la presenza di valori mancanti nel dataset "banknote"
+missing_values <- colSums(is.na(banknote))
+
+# Visualizza il numero di valori mancanti per ciascuna colonna
+print(missing_values)
+
+
+# Esamina le differenze tra le categorie della variabile categorica
+
+# Visualizza il conteggio delle osservazioni per ciascuna categoria della variabile categorica "Status"
+
+# Conteggio delle categorie "genuine" e "counterfeit"
+status_counts <- table(banknote$Status)
+
+# Stampare il conteggio delle osservazioni per ciascuna categoria della variabile "Status"
+cat("Count by Status:\n")
+print(status_counts)
+
+# Creazione del grafico a barre orizzontali per la variabile "Status"
+barplot(status_counts, 
+        main = "Horizontal Bar Chart of Status Categories",
+        horiz = TRUE,
+        names.arg = c("Counterfeit", "Genuine"),
+        col = c("skyblue", "lightgreen"),
+        xlim = c(0, max(status_counts) * 1.1),
+        xlab = "Count of banknotes")
+
+"Il dataset contiene un totale di 200 banconote, con 100 banconote classificate come 'Counterfeit' e altre 100 come 'Genuine'. Questo equilibrio nella distribuzione delle categorie suggerisce una rappresentazione bilanciata di banconote genuine e contraffatte nei dati. 
+ La presenza di un numero uguale di osservazioni in entrambe le categorie potrebbe fornire una base equa per l'analisi e l'interpretazione dei risultati. 
+ Tuttavia, è importante esaminare più approfonditamente le caratteristiche delle banconote e valutare come queste possano influenzare la classificazione tra 'Counterfeit' e 'Genuine'."
+
+
+# Calcolo delle statistiche di base per variabili numeriche suddivide per gruppi
+
+# Filtro delle banconote genuine
+genuine <- banknote[banknote$Status == "genuine", ]
+
+# Filtro delle banconote contraffatte
+counterfeit <- banknote[banknote$Status == "counterfeit", ]
+
+# Calcolo delle statistiche descrittive per le banconote genuine
+genuine_stats <- data.frame(
+  Variabile = c("Length", "Left", "Right", "Bottom", "Top", "Diagonal"),
+  Media_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], mean),
+  Deviazione_Standard_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], sd),
+  Minimo_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], min),
+  Massimo_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], max),
+  Primo_Quartile_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], quantile, 0.25),
+  Mediana_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], median),
+  Terzo_Quartile_genuine = sapply(genuine[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], quantile, 0.75),
+  Numero_Osservazioni_genuine = nrow(genuine)
+)
+
+# Calcolo delle statistiche descrittive per le banconote contraffatte
+counterfeit_stats <- data.frame(
+  Variabile = c("Length", "Left", "Right", "Bottom", "Top", "Diagonal"),
+  Media_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], mean),
+  Deviazione_Standard_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], sd),
+  Minimo_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], min),
+  Massimo_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], max),
+  Primo_Quartile_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], quantile, 0.25),
+  Mediana_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], median),
+  Terzo_Quartile_counterfeit = sapply(counterfeit[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], quantile, 0.75),
+  Numero_Osservazioni_counterfeit = nrow(counterfeit)
+)
+
+# Visualizzazione delle statistiche descrittive
+print("Statistiche descrittive per le banconote genuine:")
+print(genuine_stats)
+
+print("Statistiche descrittive per le banconote contraffatte:")
+print(counterfeit_stats)
+
+# Statistiche descrittive per le banconote genuine:
+
+# Lunghezza (Length):
+# La lunghezza media delle banconote genuine è di circa 214.97 unità, con una deviazione standard di circa 0.39 unità. Il minimo valore registrato è 213.8 e il massimo è 215.9. Il primo quartile è 214.7, la mediana è 215.0, e il terzo quartile è 215.2. Sono presenti 100 osservazioni.
+
+# Parte Sinistra (Left):
+# La misura media della parte sinistra delle banconote genuine è di circa 129.94 unità, con una deviazione standard di circa 0.36 unità. Il minimo valore registrato è 129.0 e il massimo è 131.0. Il primo quartile è 129.7, la mediana è 129.9, e il terzo quartile è 130.2. Sono presenti 100 osservazioni.
+
+# Parte Destra (Right):
+# La misura media della parte destra delle banconote genuine è di circa 129.72 unità, con una deviazione standard di circa 0.36 unità. Il minimo valore registrato è 129.0 e il massimo è 131.1. Il primo quartile è 129.4, la mediana è 129.7, e il terzo quartile è 130.0. Sono presenti 100 osservazioni.
+
+# Parte Inferiore (Bottom):
+# La misura media della parte inferiore delle banconote genuine è di circa 8.31 unità, con una deviazione standard di circa 0.64 unità. Il minimo valore registrato è 7.2 e il massimo è 10.4. Il primo quartile è 7.9, la mediana è 8.25, e il terzo quartile è 8.8. Sono presenti 100 osservazioni.
+
+# Parte Superiore (Top):
+# La misura media della parte superiore delle banconote genuine è di circa 10.17 unità, con una deviazione standard di circa 0.65 unità. Il minimo valore registrato è 7.7 e il massimo è 11.7. Il primo quartile è 9.775, la mediana è 10.2, e il terzo quartile è 10.6. Sono presenti 100 osservazioni.
+
+# Diagonale (Diagonal):
+# La misura media della diagonale delle banconote genuine è di circa 141.52 unità, con una deviazione standard di circa 0.45 unità. Il minimo valore registrato è 139.6 e il massimo è 142.4. Il primo quartile è 141.2, la mediana è 141.5, e il terzo quartile è 141.8. Sono presenti 100 osservazioni.
+
+
+
+# Statistiche descrittive per le banconote contraffatte:
+
+# Lunghezza (Length):
+# La lunghezza media delle banconote contraffatte è di circa 214.82 unità, con una deviazione standard di circa 0.35 unità. Il minimo valore registrato è 213.9 e il massimo è 216.3. Il primo quartile è 214.6, la mediana è 214.8, e il terzo quartile è 215.0. Sono presenti 100 osservazioni.
+
+# Parte Sinistra (Left):
+# La misura media della parte sinistra delle banconote contraffatte è di circa 130.30 unità, con una deviazione standard di circa 0.26 unità. Il minimo valore registrato è 129.6 e il massimo è 130.8. Il primo quartile è 130.1, la mediana è 130.3, e il terzo quartile è 130.5. Sono presenti 100 osservazioni.
+
+# Parte Destra (Right):
+# La misura media della parte destra delle banconote contraffatte è di circa 130.19 unità, con una deviazione standard di circa 0.30 unità. Il minimo valore registrato è 129.3 e il massimo è 131.1. Il primo quartile è 130.0, la mediana è 130.2, e il terzo quartile è 130.4. Sono presenti 100 osservazioni.
+
+# Parte Inferiore (Bottom):
+# La misura media della parte inferiore delle banconote contraffatte è di circa 10.53 unità, con una deviazione standard di circa 1.13 unità. Il minimo valore registrato è 7.4 e il massimo è 12.7. Il primo quartile è 9.9, la mediana è 10.6, e il terzo quartile è 11.4. Sono presenti 100 osservazioni.
+
+# Parte Superiore (Top):
+# La misura media della parte superiore delle banconote contraffatte è di circa 11.13 unità, con una deviazione standard di circa 0.64 unità. Il minimo valore registrato è 9.1 e il massimo è 12.3. Il primo quartile è 10.675, la mediana è 11.1, e il terzo quartile è 11.525. Sono presenti 100 osservazioni.
+
+# Diagonale (Diagonal):
+# La misura media della diagonale delle banconote contraffatte è di circa 139.45 unità, con una deviazione standard di circa 0.56 unità. Il minimo valore registrato è 137.8 e il massimo è 140.6. Il primo quartile è 139.2, la mediana è 139.5, e il terzo quartile è 139.8. Sono presenti 100 osservazioni.
+
+
+
+
+"Test di normalità delle variabili quantitative per banconote genuine e contraffatte utilizzando il test di Shapiro-Wilk"
+
+# Test di normalità di Shapiro-Wilk per le banconote genuine
+shapiro_test_genuine <- lapply(genuine[, -1], shapiro.test)
+
+# Test di normalità di Shapiro-Wilk per le banconote contraffatte
+shapiro_test_counterfeit <- lapply(counterfeit[, -1], shapiro.test)
+
+# Stampare i risultati
+print("Test di normalità di Shapiro-Wilk per le banconote genuine:")
+print(shapiro_test_genuine)
+
+# Descrizione dei risultati del test di normalità di Shapiro-Wilk per le banconote genuine:
+
+# Length (Lunghezza):
+# Il valore di W (statistica del test di Shapiro-Wilk) è 0.98374.
+# Il valore di p (p-value) è 0.2567.
+# Dal momento che il valore p è superiore al livello di significatività comune del 5%, non c'è evidenza sufficiente per rigettare l'ipotesi nulla di normalità. Quindi, si può ritenere che la variabile Length abbia una distribuzione approssimativamente normale.
+
+# Left (Parte Sinistra):
+# Il valore di W è 0.96431.
+# Il valore di p è 0.008254.
+# Il valore p è inferiore al livello di significatività del 5%, indicando che si può rigettare l'ipotesi nulla di normalità. Quindi, la distribuzione della variabile Left non è normale.
+
+# Right (Parte Destra):
+# Il valore di W è 0.96637.
+# Il valore di p è 0.01174.
+# Come per Left, il valore p è inferiore al livello di significatività del 5%, quindi la distribuzione della variabile Right non è normale.
+
+# Bottom (Parte Inferiore):
+# Il valore di W è 0.97338.
+# Il valore di p è 0.04035.
+# Anche se il valore p è inferiore al 5%, il superamento di questo valore non è significativo. Tuttavia, si potrebbe considerare la distribuzione come approssimativamente normale.
+
+# Top (Parte Superiore):
+# Il valore di W è 0.97456.
+# Il valore di p è 0.04984.
+# Come per Bottom, il p-value è leggermente inferiore al livello di significatività del 5%, ma in modo marginale. Si potrebbe considerare la distribuzione come approssimativamente normale.
+
+# Diagonal (Diagonale):
+# Il valore di W è 0.95878.
+# Il valore di p è 0.003295.
+# Il valore p è significativamente inferiore al livello di significatività del 5%, indicando che si può rigettare l'ipotesi nulla di normalità. Quindi, la distribuzione della variabile Diagonal non è normale.
+
+print("Test di normalità di Shapiro-Wilk per le banconote contraffatte:")
+print(shapiro_test_counterfeit)
+
+# Descrizione dei risultati del test di normalità di Shapiro-Wilk per le banconote contraffatte:
+
+# Length (Lunghezza):
+# Il valore di W (statistica del test di Shapiro-Wilk) è 0.95799.
+# Il valore di p (p-value) è 0.002899.
+# Il p-value è significativamente inferiore al livello di significatività del 5%, indicando che si può rigettare l'ipotesi nulla di normalità. Quindi, la distribuzione della variabile Length non è normale.
+
+# Left (Parte Sinistra):
+# Il valore di W è 0.9704.
+# Il valore di p è 0.02372.
+# Anche se il p-value è inferiore al livello di significatività del 5%, il superamento di questo valore non è significativo. Tuttavia, si potrebbe considerare la distribuzione come approssimativamente normale.
+
+# Right (Parte Destra):
+# Il valore di W è 0.96845.
+# Il valore di p è 0.01683.
+# Come per Left, il p-value è leggermente inferiore al livello di significatività del 5%, ma in modo marginale. Si potrebbe considerare la distribuzione come approssimativamente normale.
+
+# Bottom (Parte Inferiore):
+# Il valore di W è 0.96607.
+# Il valore di p è 0.01115.
+# Il p-value è inferiore al livello di significatività del 5%, indicando che si può rigettare l'ipotesi nulla di normalità. Quindi, la distribuzione della variabile Bottom non è normale.
+
+# Top (Parte Superiore):
+# Il valore di W è 0.97447.
+# Il valore di p è 0.04909.
+# Il p-value è leggermente inferiore al livello di significatività del 5%, ma in modo marginale. Si potrebbe considerare la distribuzione come approssimativamente normale.
+
+# Diagonal (Diagonale):
+# Il valore di W è 0.92662.
+# Il valore di p è 3.215e-05.
+# Il p-value è significativamente inferiore al livello di significatività del 5%, indicando che si può rigettare l'ipotesi nulla di normalità. Quindi, la distribuzione della variabile Diagonal non è normale.
+
+
+
+
+
+# Analisi di omoschedasticità tramite test di Bartlett 
+
+# Carica la libreria stats per utilizzare la funzione bartlett.test
+library(stats)
+
+# Definisci le variabili numeriche da confrontare
+variables <- c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")
+
+# Lista per salvare i risultati del test di Bartlett
+bartlett_results <- list()
+
+# Esegui il test di Bartlett per ciascuna variabile numerica
+for (var in variables) {
+  genuine_var <- banknote[banknote$Status == "genuine", var]
+  counterfeit_var <- banknote[banknote$Status == "counterfeit", var]
+  
+  # Esegui il test di Bartlett
+  result <- bartlett.test(list(genuine_var, counterfeit_var))
+  
+  # Salva il risultato nella lista
+  bartlett_results[[var]] <- result
+}
+
+# Stampare i risultati del test di Bartlett per ciascuna variabile numerica
+for (var in variables) {
+  cat("Risultati del test di Bartlett per la variabile", var, ":\n")
+  print(bartlett_results[[var]])
+  cat("\n")
+}
+
+# Risultati del test di Bartlett 
+
+# Per la variabile Length: Bartlett's K-squared = 0.9052, df = 1, p-value = 0.3414
+# Il p-value è maggiore di 0.05, quindi non c'è evidenza sufficiente per rifiutare l'ipotesi di omoschedasticità per la variabile Length.
+
+# Per la variabile Left: Bartlett's K-squared = 12.229, df = 1, p-value = 0.0004706
+# Il p-value è inferiore a 0.05, indicando che l'omoschedasticità non può essere accettata per la variabile Left.
+
+# Per la variabile Right: Bartlett's K-squared = 3.0082, df = 1, p-value = 0.08285
+# Il p-value è maggiore di 0.05, quindi non c'è evidenza sufficiente per rifiutare l'ipotesi di omoschedasticità per la variabile Right.
+
+# Per la variabile Bottom: Bartlett's K-squared = 29.987, df = 1, p-value = 4.35e-08
+# Il p-value è molto piccolo (inferiore a 0.05), indicando che l'omoschedasticità non può essere accettata per la variabile Bottom.
+
+# Per la variabile Top: Bartlett's K-squared = 0.040464, df = 1, p-value = 0.8406
+# Il p-value è maggiore di 0.05, quindi non c'è evidenza sufficiente per rifiutare l'ipotesi di omoschedasticità per la variabile Top.
+
+# Per la variabile Diagonal: Bartlett's K-squared = 4.7962, df = 1, p-value = 0.02852
+# Il p-value è inferiore a 0.05, indicando che l'omoschedasticità non può essere accettata per la variabile Diagonal.
+
+
+
+
+"Visualizzazione delle Distribuzioni per Banconote Genuine e Contraffatte"
+
+# Calcola il numero di righe nel dataset
+N <- nrow(banknote)
+
+# Colori forniti
+colors <- c("red", "blue", "green", "orange", "purple", "pink")
+
+# Imposta il layout dei grafici
+par(mfrow=c(2, 3))
+
+# Lista delle variabili quantitative nel dataset
+numeric_vars <- c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")
+
+# Loop per creare gli istogrammi per le banconote genuine
+for (i in 1:6) {
+  # Istogrammi per le banconote genuine
+  hist(banknote[banknote$Status == "genuine", numeric_vars[i]], col = colors[i], main = paste("Genuine:", numeric_vars[i]), xlab = "", prob = TRUE)
+  # Curva normale per le banconote genuine
+  curve(dnorm(x, mean = mean(banknote[banknote$Status == "genuine", numeric_vars[i]]), sd = sd(banknote[banknote$Status == "genuine", numeric_vars[i]])), 
+        from = min(banknote[banknote$Status == "genuine", numeric_vars[i]]), to = max(banknote[banknote$Status == "genuine", numeric_vars[i]]), 
+        add = TRUE, col = "darkblue", lwd = 2)
+}
+
+# Aggiunta del titolo per le banconote genuine
+mtext("Distribution of Variables for Genuine Banknotes", side = 1, line = 3, cex = 1.4, adj = 1)
+
+# Imposta nuovamente il layout dei grafici
+par(mfrow=c(2, 3))
+
+# Loop per creare gli istogrammi per le banconote contraffatte
+for (i in 1:6) {
+  # Istogrammi per le banconote contraffatte
+  hist(banknote[banknote$Status == "counterfeit", numeric_vars[i]], col = colors[i], main = paste("Counterfeit:", numeric_vars[i]), xlab = "", prob = TRUE)
+  # Curva normale per le banconote contraffatte
+  curve(dnorm(x, mean = mean(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), sd = sd(banknote[banknote$Status == "counterfeit", numeric_vars[i]])), 
+        from = min(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), to = max(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), 
+        add = TRUE, col = "darkblue", lwd = 2)
+}
+
+# Aggiunta del titolo per le banconote contraffatte
+mtext("Distribution of Variables for Counterfeit Banknotes", side = 1, line = 3, cex = 1.4, adj = 1)
+
+# I grafici confermano i risultati dell'output numerico del test di normalità di Shapiro
+
+
+
+"Esplorazione della Struttura delle Banconote Genuine e Contraffatte attraverso l'Analisi delle Componenti Principali (PCA)"
+
+# L'analisi delle componenti principali (PCA) è una tecnica di riduzione dimensionale utilizzata per esplorare la struttura dei dati identificando i principali modelli di variazione all'interno di un insieme di variabili. 
+# In questo contesto, l'analisi PCA viene impiegata per esaminare le caratteristiche delle banconote genuine e contraffatte, al fine di individuare pattern distintivi e comprendere meglio la loro struttura.
+
+# Esplorazione della Struttura delle Banconote Genuine e Contraffatte attraverso l'Analisi delle Componenti Principali (PCA)"
+
+# Carica il pacchetto FactoMineR
+library(FactoMineR)
+
+# Standardizzazione dei dati
+genuine_standardized <- scale(genuine[, -1])
+counterfeit_standardized <- scale(counterfeit[, -1])
+
+# Esegui l'analisi PCA per le banconote genuine
+pca_genuine <- PCA(genuine_standardized, scale.unit = FALSE, graph = FALSE)
+
+# Esegui l'analisi PCA per le banconote contraffatte
+pca_counterfeit <- PCA(counterfeit_standardized, scale.unit = FALSE, graph = FALSE)
+
+# Imposta il layout dei grafici
+par(mfrow = c(1, 2))
+
+# Grafico delle Variabili per PCA Genuine
+plot(pca_genuine$ind$coord[, 1], pca_genuine$ind$coord[, 2], xlab = "PC1", ylab = "PC2", main = "Genuine", col = "orange", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Grafico delle Variabili per PCA Contraffatte
+plot(pca_counterfeit$ind$coord[, 1], pca_counterfeit$ind$coord[, 2], xlab = "PC1", ylab = "PC2", main = "Counterfeit", col = "red", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Resetta il layout dei grafici
+par(mfrow = c(1, 1))
+
+# Unione delle distribuzioni
+all_data <- rbind(pca_genuine$ind$coord[, 1:2], pca_counterfeit$ind$coord[, 1:2])
+group <- c(rep("Genuine", nrow(pca_genuine$ind$coord)), rep("Counterfeit", nrow(pca_counterfeit$ind$coord)))
+
+# Grafico delle Variabili per PCA con unione delle distribuzioni
+plot(all_data[group == "Genuine", 1], all_data[group == "Genuine", 2], xlab = "PC1", ylab = "PC2", main = "Genuine e Counterfeit", col = "orange", pch = 19, xlim = c(min(all_data[, 1]), max(all_data[, 1])), ylim = c(min(all_data[, 2]), max(all_data[, 2])))
+points(all_data[group == "Counterfeit", 1], all_data[group == "Counterfeit", 2], col = "red", pch = 19)
+legend("topright", legend = unique(group), col = c("orange", "red"), pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Output numerico combinato
+cat("Risultati combinati della PCA per banconote genuine e contraffatte:\n")
+print(summary(pca_genuine))
+print(summary(pca_counterfeit))
+
+# Output delle varianze spiegate per le prime due dimensioni della PCA per le banconote genuine
+cat("Varianza spiegata per le prime due dimensioni - Genuine:\n")
+print(pca_genuine$eig[1:2] / sum(pca_genuine$eig))
+
+# Output delle varianze spiegate per le prime due dimensioni della PCA per le banconote contraffatte
+cat("\nVarianza spiegata per le prime due dimensioni - Counterfeit:\n")
+print(pca_counterfeit$eig[1:2] / sum(pca_counterfeit$eig))
+
+# Spiegazione delle componenti principali per le Banconote Genuine
+
+# PC1: rappresenta la direzione principale di massima variazione nei dati. 
+# Questa componente è caratterizzata da una deviazione standard di 1.4845, indicando una vasta dispersione dei dati lungo questa direzione. 
+# La proporzione della varianza spiegata dalla PC1 è del 36.73%, suggerendo che questa componente cattura una parte significativa della variazione nei dati.
+# La proporzione cumulativa della varianza fino a PC1 è anch'essa del 36.73%, indicando che considerando solo la PC1, si spiega circa un terzo della variazione totale nei dati.
+
+# PC2: rappresenta la seconda direzione principale di variazione che è ortogonale alla PC1.
+# Ha una deviazione standard di 1.3026, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC2 è del 28.28%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1.
+# La proporzione cumulativa della varianza fino a PC2 è del 65.01%, indicando che insieme a PC1, PC2 spiega circa il 65% della variazione totale nei dati.
+
+# PC3: rappresenta la terza direzione principale di variazione dopo PC1 e PC2.
+# Ha una deviazione standard di 0.9827, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC3 è del 16.10%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1 e PC2.
+# La proporzione cumulativa della varianza fino a PC3 è dell'81.11%, indicando che insieme a PC1, PC2 e PC3 spiega circa l'81% della variazione totale nei dati.
+
+# PC4: rappresenta la quarta direzione principale di variazione dopo PC1, PC2 e PC3.
+# Ha una deviazione standard di 0.76348, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC4 è del 9.71%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2 e PC3.
+# La proporzione cumulativa della varianza fino a PC4 è dell'90.82%, indicando che insieme a PC1, PC2, PC3 e PC4 spiega circa il 91% della variazione totale nei dati.
+
+# PC5: rappresenta la quinta direzione principale di variazione dopo PC1, PC2, PC3 e PC4.
+# Ha una deviazione standard di 0.57156, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC5 è del 5.45%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2, PC3 e PC4.
+# La proporzione cumulativa della varianza fino a PC5 è del 96.27%, indicando che insieme a PC1, PC2, PC3, PC4 e PC5 spiega circa il 96% della variazione totale nei dati.
+
+# PC6: rappresenta la sesta direzione principale di variazione dopo PC1, PC2, PC3, PC4 e PC5.
+# Ha una deviazione standard di 0.47340, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC6 è del 3.73%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2, PC3, PC4 e PC5.
+# La proporzione cumulativa della varianza fino a PC6 è del 100.00%, indicando che insieme a PC1, PC2, PC3, PC4 e PC5, tutte le variazioni nei dati sono considerate.
+
+ 
+# Graficamente
+# Il grafico rappresenta l'analisi PCA delle banconote genuine, dove ogni punto corrisponde a una banconota. Le due assi del grafico, PC1 e PC2, sono le prime due componenti principali ottenute dall'analisi PCA. La posizione di ciascun punto sul grafico riflette la sua posizione nello spazio delle componenti principali, con PC1 sull'asse x e PC2 sull'asse y. I punti sono colorati in arancione per rappresentare le banconote genuine. Si osserva una distribuzione dei punti concentrata principalmente intorno ai valori 0 di entrambe le componenti principali, con una leggera dispersione sia verso l'alto che verso destra. Questo suggerisce che le banconote genuine mostrano una certa variabilità, ma tendono ad avere caratteristiche comuni che le posizionano principalmente in una regione specifica dello spazio delle componenti principali.
+
+
+# Spiegazione delle componenti principali per le Banconote Contraffatte
+
+# PC1: rappresenta la direzione principale di massima variazione nei dati delle banconote contraffatte. 
+# Ha una deviazione standard di 1.3915, indicando una vasta dispersione dei dati lungo questa direzione. 
+# La proporzione della varianza spiegata dalla PC1 è del 32.27%, suggerendo che questa componente cattura una parte significativa della variazione nei dati.
+# La proporzione cumulativa della varianza fino a PC1 è anch'essa del 32.27%, indicando che considerando solo la PC1, si spiega circa un terzo della variazione totale nei dati delle banconote contraffatte.
+
+# PC2: rappresenta la seconda direzione principale di variazione, ortogonale alla PC1.
+# Ha una deviazione standard di 1.3285, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC2 è del 29.41%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1.
+# La proporzione cumulativa della varianza fino a PC2 è del 61.69%, indicando che insieme a PC1, PC2 spiega circa il 62% della variazione totale nei dati delle banconote contraffatte.
+
+# PC3: rappresenta la terza direzione principale di variazione dopo PC1 e PC2.
+# Ha una deviazione standard di 0.9941, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC3 è del 16.47%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1 e PC2.
+# La proporzione cumulativa della varianza fino a PC3 è dell' 78.16%, indicando che insieme a PC1, PC2 e PC3 spiega circa il 78% della variazione totale nei dati delle banconote contraffatte.
+
+# PC4: rappresenta la quarta direzione principale di variazione dopo PC1, PC2 e PC3.
+# Ha una deviazione standard di 0.8823, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC4 è del 12.97%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2 e PC3.
+# La proporzione cumulativa della varianza fino a PC4 è dell' 91.13%, indicando che insieme a PC1, PC2, PC3 e PC4 spiega circa il 91% della variazione totale nei dati delle banconote contraffatte.
+
+# PC5: rappresenta la quinta direzione principale di variazione dopo PC1, PC2, PC3 e PC4.
+# Ha una deviazione standard di 0.56755, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC5 è del 5.68%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2, PC3 e PC4.
+# La proporzione cumulativa della varianza fino a PC5 è del 96.498%, indicando che insieme a PC1, PC2, PC3, PC4 e PC5 spiega circa il 96% della variazione totale nei dati delle banconote contraffatte.
+
+# PC6: rappresenta la sesta direzione principale di variazione dopo PC1, PC2, PC3, PC4 e PC5.
+# Ha una deviazione standard di 0.45840, indicando la dispersione dei dati lungo questa direzione.
+# La proporzione della varianza spiegata dalla PC6 è del 3.502%, suggerendo che questa componente cattura una parte significativa della variazione residua nei dati dopo PC1, PC2, PC3, PC4 e PC5.
+# La proporzione cumulativa della varianza fino a PC6 è del 100.00%, indicando che insieme a PC1, PC2, PC3, PC4, PC5 e PC6 spiega la totalità della variazione nei dati delle banconote contraffatte.
+
+# Graficamente
+# Il grafico rappresenta l'analisi PCA delle banconote contraffatte, con PC1 sull'asse x e PC2 sull'asse y. Ogni punto corrisponde a una banconota, e la sua posizione riflette la sua posizione nello spazio delle componenti principali. I punti sono colorati in rosso per rappresentare le banconote contraffatte. Rispetto alle banconote genuine, si osserva una maggiore dispersione dei punti, con una distribuzione che si estende su un intervallo più ampio lungo entrambe le componenti principali. Questo suggerisce una maggiore variazione nei dati delle banconote contraffatte rispetto a quelle genuine."
+
+
+# Confronto
+
+"Entrambi i gruppi mostrano deviazioni standard simili e proporzioni di varianza per le prime due componenti principali. Tuttavia, mentre le banconote genuine presentano una deviazione standard leggermente più elevata sulla PC1 (1.4845 per le banconote genuine contro 1.3915 per le banconote contraffatte), la proporzione cumulativa della varianza fino a PC2 è leggermente più alta per le banconote genuine (65.01% per le banconote genuine contro il 61.69% per le banconote contraffatte). Inoltre, la deviazione standard sulla PC3 è anche più alta per le banconote genuine (0.9827 per le banconote genuine contro 0.9941 per le banconote contraffatte), mentre la proporzione cumulativa della varianza fino a PC3 è del 81.11% per le banconote genuine, rispetto al 78.16% per le banconote contraffatte. Analogamente, le banconote genuine mostrano deviazioni standard leggermente più elevate sulla PC4 (0.76348 per le banconote genuine contro 0.8823 per le banconote contraffatte), mentre la proporzione cumulativa della varianza fino a PC4 è del 90.82% per le banconote genuine, rispetto al 91.13% per le banconote contraffatte. Infine, sulla PC5 e PC6, le deviazioni standard e le proporzioni di varianza sono simili tra i due gruppi. Questi dati indicano una maggiore varietà o complessità nei dati genuine che richiede un maggior numero di componenti principali per spiegare completamente la variazione. Questa discrepanza potrebbe riflettere le differenze intrinseche nella natura dei due gruppi di banconote. Ad esempio, le banconote genuine possono presentare una gamma più ampia di caratteristiche di sicurezza, firme e altre marcature distintive rispetto alle banconote contraffatte, che potrebbero essere più uniformi nelle loro caratteristiche. Di conseguenza, mentre le prime componenti principali possono essere simili tra i due gruppi, la complessità e la varietà complessiva dei dati possono essere più pronunciate nelle banconote genuine, evidenziando la necessità di una maggiore analisi per catturare appieno la variazione nei dati genuine rispetto alle contraffatte."
+"Il terzo grafico mostra una sovrapposizione significativa tra le banconote genuine (rappresentate in arancione) e le banconote contraffatte (rappresentate in rosso) nello spazio delle prime due componenti principali. Entrambi i gruppi tendono a concentrarsi principalmente tra -2 e 2 sull'asse y (PC2) e tra -2 e 3 sull'asse x (PC1). 
+ Questo suggerisce una somiglianza generale nei tratti principali delle due categorie di banconote, ma la maggiore densità di punti rossi indica la presenza di caratteristiche distintive nelle banconote contraffatte. La sovrapposizione e le differenze osservate potrebbero essere indicative di una similitudine generale con alcune variazioni nei dati delle banconote contraffatte che le distinguono dalle banconote genuine."
+
+
+
+### Seconda PCA
+
+# Standardizzazione dei dati
+genuine_standardized_2 <- scale(genuine[, -1])
+counterfeit_standardized_2 <- scale(counterfeit[, -1])
+
+# Esegui l'analisi PCA per le banconote genuine
+pca_genuine_2 <- prcomp(genuine_standardized_2, center = TRUE, scale. = TRUE)
+
+# Esegui l'analisi PCA per le banconote contraffatte
+pca_counterfeit_2 <- prcomp(counterfeit_standardized_2, center = TRUE, scale. = TRUE)
+
+# Imposta il layout dei grafici
+par(mfrow = c(1, 2))
+
+# Grafico delle Variabili per PCA Genuine con PC3 e PC4
+plot(pca_genuine_2$x[,1], pca_genuine_2$x[,2], xlab = "PC3", ylab = "PC4", main = "Genuine", col = "purple", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Grafico delle Variabili per PCA Contraffatte con PC3 e PC4
+plot(pca_counterfeit_2$x[,1], pca_counterfeit_2$x[,2], xlab = "PC3", ylab = "PC4", main = "Counterfeit", col = "darkgreen", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Resetta il layout dei grafici
+par(mfrow = c(1, 1))
+
+# Unione delle distribuzioni
+all_data_2 <- rbind(pca_genuine_2$x[,1:2], pca_counterfeit_2$x[,1:2])
+group_2 <- c(rep("Genuine", nrow(pca_genuine_2$x)), rep("Counterfeit", nrow(pca_counterfeit_2$x)))
+colors_2 <- c(rep("purple", nrow(pca_genuine_2$x)), rep("darkgreen", nrow(pca_counterfeit_2$x)))
+
+# Grafico delle Variabili per PCA con unione delle distribuzioni
+plot(all_data_2[,1], all_data_2[,2], xlab = "PC3", ylab = "PC4", main = "Banknotes Genuine e Counterfeit", col = colors_2, pch = 19)
+legend("topleft", legend = unique(group_2), col = c("purple", "darkgreen"), pch = 19, bg = "white", xpd = TRUE)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Il grafico mostra la distribuzione delle banconote contraffatte (rappresentate dai pallini verdi) e genuine (rappresentate dai pallini viola) nello spazio delle componenti principali PC3 e PC4.
+# Gli assi sono etichettati con valori che vanno da -3 a 3 per PC3 e da -4 a 4 per PC4.
+# Si osserva che i pallini delle banconote contraffatte sono più densi rispetto a quelli delle banconote genuine, specialmente nella zona compresa tra -2 e 2 sull'asse x e -2 e 2 sull'asse y.
+# Questa maggiore concentrazione delle banconote contraffatte in determinate regioni suggerisce una struttura o raggruppamento più evidente rispetto alle banconote genuine in questo spazio delle componenti principali.
+
+# Output delle varianze spiegate per la terza e la quarta dimensioni della PCA per le banconote genuine (seconda PCA)
+cat("Varianza spiegata per le prime due dimensioni - Genuine (Seconda PCA):\n")
+print(pca_genuine_2$sdev[3:4] ^ 2 / sum(pca_genuine_2$sdev ^ 2))
+
+# Output delle varianze spiegate per la terza e la quarta  dimensioni della PCA per le banconote contraffatte (seconda PCA)
+cat("\nVarianza spiegata per le prime due dimensioni - Counterfeit (Seconda PCA):\n")
+print(pca_counterfeit_2$sdev[3:4] ^ 2 / sum(pca_counterfeit_2$sdev ^ 2))
+
+# La varianza spiegata per la terza e la quarta dimensione della PCA (Analisi delle Componenti Principali) offre informazioni cruciali sulla distribuzione e sulla struttura dei dati nelle banconote genuine e contraffatte.
+# Per le banconote genuine (Seconda PCA), la terza dimensione spiega circa il 16.10% della varianza totale dei dati, mentre la quarta dimensione spiega circa il 9.71%. Questo significa che queste due dimensioni sono importanti per catturare le variazioni e i pattern nei dati delle banconote genuine, anche se la quarta dimensione contribuisce meno rispetto alla terza.
+
+# Nel caso delle banconote contraffatte (Seconda PCA), la terza dimensione spiega circa il 16.47% della varianza totale, mentre la quarta dimensione spiega circa il 12.97%. Questi valori indicano che le variazioni nei dati delle banconote contraffatte sono catturate in modo significativo anche dalla terza e quarta dimensione della PCA.
+# In generale, una maggiore varianza spiegata in queste dimensioni suggerisce che contengono informazioni rilevanti per distinguere tra le due categorie di banconote. Questo può essere utile per comprendere meglio le caratteristiche distintive delle banconote genuine e contraffatte e identificare le differenze significative nel loro spazio delle caratteristiche.
+
+
+
+
+
+### Terza PCA
+
+# Standardizzazione dei dati
+genuine_standardized_3 <- scale(genuine[, -1])
+counterfeit_standardized_3 <- scale(counterfeit[, -1])
+
+# Esegui l'analisi PCA per le banconote genuine
+pca_genuine_3 <- prcomp(genuine_standardized_3, center = TRUE, scale. = TRUE)
+
+# Esegui l'analisi PCA per le banconote contraffatte
+pca_counterfeit_3 <- prcomp(counterfeit_standardized_3, center = TRUE, scale. = TRUE)
+
+# Imposta il layout dei grafici
+par(mfrow = c(1, 2))
+
+# Grafico delle Variabili per PCA Genuine
+plot(pca_genuine_3$x[,5], pca_genuine_3$x[,6], xlab = "PC5", ylab = "PC6", main = "Genuine", col = "dodgerblue", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Grafico delle Variabili per PCA Contraffatte
+plot(pca_counterfeit_3$x[,5], pca_counterfeit_3$x[,6], xlab = "PC5", ylab = "PC6", main = "Counterfeit", col = "darkorange", pch = 19)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Resetta il layout dei grafici
+par(mfrow = c(1, 1))
+
+# Unione delle distribuzioni
+all_data_3 <- rbind(pca_genuine_3$x[,5:6], pca_counterfeit_3$x[,5:6])
+group_3 <- c(rep("Genuine", nrow(pca_genuine_3$x)), rep("Counterfeit", nrow(pca_counterfeit_3$x)))
+colors_3 <- c(rep("dodgerblue", nrow(pca_genuine_3$x)), rep("darkorange", nrow(pca_counterfeit_3$x)))
+
+# Grafico delle Variabili per PCA con unione delle distribuzioni
+plot(all_data_3[,1], all_data_3[,2], xlab = "PC5", ylab = "PC6", main = "Banknotes Genuine e Counterfeit", col = colors_3, pch = 19)
+legend("topleft", legend = unique(group_3), col = c("dodgerblue", "darkorange"), pch = 19, bg = "white", xpd = TRUE)
+abline(h = 0, v = 0, col = "gray")
+grid()
+
+# Nel grafico sopra, le banconote genuine sono rappresentate dai pallini blu, mentre le banconote contraffatte sono rappresentate dai pallini arancioni. 
+# Entrambi i gruppi di banconote si concentrano principalmente intorno a valori compresi tra -1 e 1 sull'asse x (PC5) e tra -1 e 1 sull'asse y (PC6), indicando una distribuzione simile tra le due categorie. 
+# Tuttavia, si nota una maggiore densità di pallini blu, che rappresentano le banconote genuine, rispetto ai pallini arancioni, che rappresentano le banconote contraffatte, suggerendo che le banconote genuine siano più numerose in questa regione dello spazio delle componenti principali.
+
+# Stampa dei carichi per le componenti principali
+cat("Carichi delle componenti principali per le banconote genuine:\n")
+print(pca_genuine_3$rotation)
+
+cat("\nCarichi delle componenti principali per le banconote contraffatte:\n")
+print(pca_counterfeit_3$rotation)
+
+# Premessa: Direzione Positiva e Negativa nelle Componenti Principali
+
+# In un'analisi PCA in R, "direzione positiva" indica una correlazione positiva tra una variabile e una componente principale, mentre "direzione negativa" indica una correlazione negativa.
+
+# Direzione Positiva:
+# - Un carico positivo indica che un aumento nei valori della variabile è associato a un aumento nei valori della componente principale.
+# - Una diminuzione nei valori della variabile è associata a una diminuzione nei valori della componente principale.
+
+# Direzione Negativa:
+# - Un carico negativo indica che un aumento nei valori della variabile è associato a una diminuzione nei valori della componente principale.
+# - Una diminuzione nei valori della variabile è associata a un aumento nei valori della componente principale.
+
+# Comprendere questi concetti è cruciale per interpretare correttamente i risultati dell'analisi PCA.
+
+
+
+
+"Carichi delle componenti principali per le banconote genuine" 
+
+# PC1:
+
+# Length: Ha un carico positivo (0.450) su PC1, indicando che variazioni nella lunghezza hanno un impatto significativo sulla prima componente principale.
+# Left: Ha un carico positivo (0.585) su PC1, suggerendo che la posizione sinistra contribuisca positivamente a PC1.
+# Right: Ha un carico positivo (0.572) su PC1, indicando una correlazione positiva con la direzione di questa componente.
+# Bottom: Ha un carico positivo (0.281) su PC1, suggerendo una correlazione positiva con la direzione di questa componente.
+# Top: Ha un carico negativo (0.082) su PC1, indicando che la posizione superiore contribuisce in modo opposto rispetto alle altre variabili in PC1.
+# Diagonal: Ha un carico negativo (-0.206) su PC1, suggerendo una correlazione negativa con la direzione di questa componente.
+
+# PC2:
+
+# Length: Ha un carico positivo (0.074) su PC2, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Left: Ha un carico negativo significativo (-0.107) su PC2, indicando che la presenza di caratteristiche nella parte sinistra della banconota contribuisce in modo predominante alla direzione opposta di PC2.
+# Right: Ha un carico negativo (0.036) su PC2, sebbene sia molto piccolo, suggerendo una correlazione negativa minore con la direzione di questa componente.
+# Bottom: Ha il carico più alto su PC2 (0.616), indicando che la presenza di caratteristiche nella parte inferiore della banconota influenzi in modo predominante la direzione di PC2.
+# Top: Ha un carico negativo significativo (-0.709) su PC2, indicando che la presenza di caratteristiche nella parte superiore della banconota contribuisce in modo significativo alla direzione opposta di questa componente.
+# Diagonal: Ha un carico positivo (0.315) su PC2, suggerendo una correlazione positiva minore con la direzione di questa componente.
+
+
+# PC3:
+
+# Length: Ha un carico negativo significativo su PC3 (-0.48), suggerendo che la lunghezza della banconota influenzi in modo predominante la direzione opposta di questa componente.
+# Left: Ha un carico positivo (0.048) su PC3, sebbene sia molto piccolo, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Right: Ha un carico negativo significativo (-0.077) su PC3, indicando che la presenza di caratteristiche nella parte destra della banconota contribuisce in modo significativo alla direzione opposta di PC3.
+# Bottom: Ha un carico positivo (0.28) su PC3, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Top: Ha un carico negativo significativo (-0.17) su PC3, indicando che la presenza di caratteristiche nella parte superiore della banconota contribuisce in modo significativo alla direzione opposta di PC3.
+# Diagonal: Ha il carico più alto su PC3 (-0.81), indicando che la presenza di caratteristiche nella diagonale della banconota contribuisce in modo predominante alla direzione opposta di questa componente.
+
+# PC4:
+
+# Length: Ha un carico negativo significativo (-0.742) su PC4, indicando che la lunghezza della banconota influenzi in modo predominante la direzione opposta di questa componente.
+# Left: Ha un carico positivo (0.286) su PC4, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Right: Ha un carico positivo (0.456) su PC4, indicando che la presenza di caratteristiche nella parte destra della banconota contribuisce in modo significativo alla direzione di PC4.
+# Bottom: Ha un carico negativo (-0.045) su PC4, sebbene sia molto piccolo, suggerendo una correlazione negativa minore con la direzione di questa componente.
+# Top: Ha un carico negativo (-0.006) su PC4, indicando una correlazione negativa molto debole con la direzione di questa componente.
+# Diagonal: Ha un carico positivo (0.398) su PC4, suggerendo una correlazione positiva minore con la direzione di questa componente.
+
+# PC5:
+
+# Length: Ha un carico positivo (0.065) su PC5, indicando una correlazione positiva minore con la direzione di questa componente.
+# Left: Ha un carico negativo (-0.700) su PC5, indicando che la presenza di caratteristiche nella parte sinistra della banconota contribuisce in modo predominante alla direzione opposta di PC5.
+# Right: Ha un carico positivo (0.676) su PC5, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Bottom: Ha un carico negativo (-0.116) su PC5, suggerendo una correlazione negativa minore con la direzione di questa componente.
+# Top: Ha un carico negativo (-0.095) su PC5, indicando una correlazione negativa minore con la direzione di questa componente.
+# Diagonal: Ha un carico negativo (-0.165) su PC5, suggerendo una correlazione negativa minore con la direzione di questa componente.
+
+
+# PC6:
+
+# Length: Ha un carico positivo (0.095) su PC6, indicando una correlazione positiva minore con la direzione di questa componente.
+# Left: Ha un carico positivo (0.269) su PC6, suggerendo una correlazione positiva minore con la direzione di questa componente.
+# Right: Ha un carico positivo (0.028) su PC6, indicando una correlazione positiva minore con la direzione di questa componente.
+# Bottom: Ha un carico negativo (-0.669) su PC6, indicando che la posizione inferiore contribuisca in modo predominante alla direzione opposta di PC6.
+# Top: Ha un carico negativo (-0.673) su PC6, indicando che la posizione superiore contribuisca in modo predominante alla direzione opposta di PC6.
+# Diagonal: Ha un carico negativo (-0.132) su PC6, suggerendo una correlazione negativa minore con la direzione di questa componente.
+
+
+# "Carichi delle componenti principali per le banconote contraffatte" 
+
+# PC1:
+
+# Length: Ha un carico positivo (0.43), suggerendo che la lunghezza sia il principale fattore che contribuisce alla direzione positiva di questa componente.
+# Left, Right: Entrambe hanno carichi positivi significativi, suggerendo che la posizione sinistra e destra contribuiscano positivamente alla direzione di PC1.
+# Bottom: Ha un carico negativo (-0.53), indicando una forte correlazione inversa con la direzione di PC1.
+# Top, Diagonal: Entrambe hanno carichi minori e positivi, suggerendo una contribuzione minore rispetto alla lunghezza e alle posizioni laterali.
+
+# PC2:
+
+# Length: Ha un carico negativo (-0.18), suggerendo una correlazione inversa con la direzione di questa componente.
+# Left: Ha un carico negativo significativo (-0.44), indicando una forte correlazione inversa con la direzione di PC2.
+# Right, Bottom: Entrambi hanno carichi minori e negativi, suggerendo una contribuzione minore rispetto alla posizione sinistra su PC2.
+# Top: Ha un carico positivo (0.45), indicando una correlazione positiva con la direzione di questa componente.
+# Diagonal: Ha un carico negativo (-0.18), suggerendo una correlazione inversa con la direzione di PC2.
+
+# PC3:
+
+# Length: Ha un carico negativo (-0.08), suggerendo una correlazione inversa con la direzione di questa componente.
+# Left: Ha un carico positivo (0.31), indicando una correlazione positiva con la direzione di PC3.
+# Right: Ha un carico negativo (-0.06), suggerendo una correlazione inversa con la direzione di questa componente.
+# Bottom: Ha un carico positivo (0.02), indicando una correlazione positiva con la direzione di PC3.
+# Top: Ha un carico negativo (-0.46), indicando una forte correlazione inversa con la direzione di questa componente.
+# Diagonal: Ha il carico più alto su PC3 (-0.83), indicando che la diagonale contribuisce in modo predominante a PC3.
+
+# PC4:
+
+# Length: Ha un carico positivo (0.85), indicando una forte correlazione positiva con la direzione di questa componente.
+# Left, Right, Bottom, Top: Tutti hanno carichi minori e positivi, suggerendo una contribuzione minore rispetto alla lunghezza su PC4.
+# Diagonal: Ha un carico positivo (0.02), indicando una correlazione positiva con la direzione di questa componente.
+
+# PC5:
+
+# Length: Ha un carico negativo (-0.14), suggerendo una correlazione inversa con la direzione di questa componente.
+# Left: Ha un carico positivo (0.69), indicando una forte correlazione positiva con la direzione di PC5.
+# Right: Ha un carico negativo (-0.62), suggerendo una forte correlazione inversa con la direzione di questa componente.
+# Bottom: Ha un carico positivo (0.16), indicando una correlazione positiva con la direzione di PC5.
+# Top: Ha un carico positivo (0.27), indicando una correlazione positiva con la direzione di questa componente.
+# Diagonal: Ha un carico positivo (0.17), indicando una correlazione positiva con la direzione di PC5.
+
+# PC6:
+
+# Length: Ha un carico positivo (0.19), indicando una correlazione positiva con la direzione di questa componente.
+# Left: Ha un carico negativo (-0.11), suggerendo una correlazione inversa con la direzione di PC6.
+# Right: Ha un carico positivo (0.17), indicando una correlazione positiva con la direzione di questa componente.
+# Bottom: Ha un carico positivo (0.70), indicando una forte correlazione positiva con la direzione di PC6.
+# Top: Ha un carico positivo (0.55), indicando una forte correlazione positiva con la direzione di questa componente.
+# Diagonal: Ha un carico negativo (-0.36), suggerendo una correlazione inversa con la direzione di PC6.
+
+# Output delle varianze spiegate per le dimensioni 5 e 6 della PCA per le banconote genuine (terza PCA)
+cat("Varianza spiegata per le dimensioni 5 e 6 - Genuine (Terza PCA):\n")
+print(pca_genuine_3$sdev[5:6] ^ 2 / sum(pca_genuine_3$sdev ^ 2))
+
+# Output delle varianze spiegate per le dimensioni 5 e 6 della PCA per le banconote contraffatte (terza PCA)
+cat("\nVarianza spiegata per le dimensioni 5 e 6 - Counterfeit (Terza PCA):\n")
+print(pca_counterfeit_3$sdev[5:6] ^ 2 / sum(pca_counterfeit_3$sdev ^ 2))
+
+# Interpretazione dei risultati:
+# I seguenti output forniscono informazioni sulla varianza spiegata dalle dimensioni 5 e 6 ottenute da un'analisi delle componenti principali (PCA) eseguita su due gruppi di dati: "Genuine" (autentiche) e "Counterfeit" (contraffatte).
+#
+# Per le banconote genuine:
+# - La quinta dimensione spiega circa il 5.44% della varianza totale nei dati, mentre la sesta dimensione spiega circa il 3.73% della varianza totale.
+#
+# Per le banconote contraffatte:
+# - La quinta dimensione spiega circa il 5.37% della varianza totale nei dati, mentre la sesta dimensione spiega circa il 3.50% della varianza totale.
+#
+# Le piccole differenze nei valori di varianza spiegata tra i due gruppi possono indicare sottili differenze nella struttura dei dati, ma non sembrano essere significative. È importante notare che l'interpretazione diretta della importanza delle dimensioni 5 e 6 potrebbe essere limitata senza ulteriori dettagli sulle caratteristiche specifiche che contribuiscono a queste dimensioni.
+# In conclusione, queste dimensioni sono rilevanti per entrambi i gruppi di banconote, ma potrebbe essere necessario considerare altre caratteristiche per una distinzione più accurata tra banconote genuine e contraffatte.
+
+
+
+
+"Identificazione delle Principali Variazioni nelle Caratteristiche delle Banconote tramite Analisi delle Corrispondenze"
+
+# Carica i pacchetti necessari per effettuare l'analisi CA
+
+library(factoextra)
+library(FactoMineR)
+
+# Copia il dataset banknote
+banknote_CA <- banknote
+
+# Trasforma la variabile Status in numeri
+banknote_CA$Status <- ifelse(seq_along(banknote_CA$Status) <= 100, 1, 2)
+
+# Esegui l'Analisi delle Corrispondenze (CA) separate per le variabili numeriche
+ca_result_genuine <- CA(banknote_CA[banknote_CA$Status == 1, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], graph = FALSE)
+ca_result_counterfeit <- CA(banknote_CA[banknote_CA$Status == 2, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")], graph = FALSE)
+
+# Visualizza un riepilogo dei risultati delle CA separate
+summary(ca_result_genuine)
+summary(ca_result_counterfeit)
+
+# Output numerico della varianza spiegata
+cat("Varianza spiegata - Genuine:\n")
+print(ca_result_genuine$eig[1:4] / sum(ca_result_genuine$eig))
+cat("\nVarianza spiegata - Counterfeit:\n")
+print(ca_result_counterfeit$eig[1:4] / sum(ca_result_counterfeit$eig))
+
+
+# Questo output fornisce alcune informazioni chiave sull'analisi delle corrispondenze (CA) per òe banconote originali:
+# 
+# 1. Chi-quadro di indipendenza: Il chi-quadro di indipendenza tra le due variabili è pari a 9.186134, con un p-value di 1.
+#    Questo indica che non c'è evidenza statistica per rifiutare l'ipotesi di indipendenza tra le variabili.
+# 
+# 2. Autovalori: Gli autovalori per ciascuna dimensione (Dim.1, Dim.2, Dim.3, ecc.) sono riportati.
+#    Tutti gli autovalori sono 0, tranne per Dim.1 e Dim.2, suggerendo che solo le prime due dimensioni contengono informazioni utili.
+# 
+# 3. Varianza spiegata: La percentuale di varianza spiegata da ciascuna dimensione è mostrata nella tabella.
+#    Ad esempio, Dim.1 spiega il 80.349% della varianza totale, mentre Dim.2 spiega il 17.371%.
+# 
+# 4. Percentuale cumulativa di varianza spiegata: Questa tabella mostra la percentuale cumulativa di varianza spiegata da tutte le dimensioni fino a ciascuna dimensione.
+#    Le prime due dimensioni spiegano il 97.720% della varianza totale, mentre le prime tre dimensioni spiegano il 99.119%.
+# 
+# In sintesi, questi risultati forniscono una panoramica della struttura dei dati e della loro varianza spiegata dalle prime due dimensioni nell'analisi delle corrispondenze.
+
+
+
+# Questo output fornisce alcune informazioni chiave sull'analisi delle corrispondenze (CA) per le banconote contraffatte:
+# 
+# 1. Chi-quadro di indipendenza: Questo valore, pari a 15.78461, rappresenta il test di significatività dell'analisi delle corrispondenze.
+#    Un p-value di 1 indica che non c'è evidenza statistica per rifiutare l'ipotesi di indipendenza tra le variabili.
+# 
+# 2. Eigenvalues: Gli autovalori sono riportati per ciascuna dimensione (Dim.1, Dim.2, Dim.3, ecc.).
+#    Gli autovalori misurano la varianza spiegata da ciascuna dimensione. Nel tuo caso, tutti gli autovalori sono 0, tranne per Dim.1 e Dim.2.
+#    Questo suggerisce che solo le prime due dimensioni contengono informazioni utili.
+# 
+# 3. Varianza spiegata: Questa tabella mostra la percentuale di varianza spiegata da ciascuna dimensione.
+#    Nell'esempio, la Dim.1 spiega l'88.376% della varianza totale, mentre la Dim.2 spiega il 10.342%.
+#    Le successive dimensioni spiegano quantità trascurabili di varianza.
+# 
+# 4. Percentuale cumulativa di varianza spiegata: Questa tabella mostra la percentuale cumulativa di varianza spiegata da tutte le dimensioni fino a ciascuna dimensione.
+#    Ad esempio, le prime due dimensioni spiegano il 98.718% della varianza totale, mentre le prime tre dimensioni spiegano il 99.553%.
+# 
+# In sintesi, questi risultati forniscono una panoramica della struttura dei dati e della loro varianza spiegata dalle prime due dimensioni nell'analisi delle corrispondenze.
+
+
+# Imposta la finestra grafica
+par(mfrow = c(1, 2))
+
+# Grafico per le banconote genuine
+fviz_ca(ca_result_genuine, geom = c("point", "text"), col.ind = "blue",
+        addEllipses = TRUE, ellipse.level = 0.95,
+        title = "CA Plot - Genuine Banknotes")
+
+
+# Grafico per le banconote genuine per meglio visualizzare le etichette
+fviz_ca(ca_result_genuine, geom = c("point", "text"), col.ind = "blue",
+        addEllipses = TRUE, ellipse.level = 0.95,
+        title = "CA Plot - Genuine Banknotes",
+        size.text = 5,  # Aumenta la dimensione del testo
+        repel = TRUE)   # Rende le etichette vicine ai punti
+
+# Questo grafico rappresenta un'analisi delle corrispondenze (CA) condotta dopo l'applicazione di una PCA sulle banconote genuine.
+# Le prime due dimensioni principali spiegano rispettivamente l'80,3% e il 17,4% della varianza totale nei dati.
+# I punti blu nel grafico rappresentano le proiezioni dei dati delle banconote genuine nello spazio delle prime due componenti principali.
+# Si osserva una distribuzione uniforme dei dati su tutti e quattro i quadranti del grafico, suggerendo una variabilità omogenea nei dati.
+# Le etichette rosse fornite nel grafico offrono ulteriori informazioni sulle caratteristiche delle banconote genuine rispetto alle prime due componenti principali.
+# "Top" e "Bottom" indicano rispettivamente la parte superiore e inferiore delle banconote, posizionate lontane dai dati blu, il che suggerisce che tali caratteristiche potrebbero avere un'influenza limitata sulla struttura generale dei dati o che possono essere poco influenzate dalle prime due componenti principali.
+# "Diagonal" e "Length" sono associate a valori negativi della seconda dimensione, indicando che le banconote genuine tendono ad avere valori inferiori di lunghezza e diagonale rispetto ad altre osservazioni.
+# Le etichette "Left" e "Right", posizionate sull'origine, suggeriscono una variazione minima in queste direzioni, potenzialmente indicando che queste caratteristiche sono comuni a tutte le banconote genuine o che contribuiscono minimamente alla varianza nei dati.
+# Questo commento fornisce una panoramica completa della struttura del grafico CA e delle possibili interpretazioni delle posizioni delle etichette rispetto ai dati rappresentati.
+
+# Grafico per le banconote contraffatte
+fviz_ca(ca_result_counterfeit, geom = c("point", "text"), col.ind = "red",
+        addEllipses = TRUE, ellipse.level = 0.95,
+        title = "CA Plot - Counterfeit Banknotes")
+
+
+# Grafico per le banconote contraffatte per meglio visualizzare le etichette
+fviz_ca(ca_result_counterfeit, geom = c("point", "text"), col.ind = "red",
+        addEllipses = TRUE, ellipse.level = 0.95,
+        title = "CA Plot - Counterfeit Banknotes",
+        size.text = 5,  # Aumenta la dimensione del testo
+        repel = TRUE)   # Rende le etichette vicine ai punti
+
+
+# Questo grafico rappresenta un'analisi delle corrispondenze (CA) condotta dopo l'applicazione di una PCA sulle banconote contraffatte.
+# Le prime due dimensioni principali spiegano rispettivamente il 10,3% e l'88,4% della varianza totale nei dati.
+# I punti blu nel grafico rappresentano le proiezioni dei dati delle banconote contraffatte nello spazio delle prime due componenti principali.
+# Si osserva una distribuzione dei dati che si espande dai valori vicini all'origine verso i quattro quadranti, con una maggiore concentrazione vicino all'origine nei primi due quadranti, seguita da un andamento verso i valori negativi delle coordinate x e y.
+# Le etichette rosse fornite nel grafico offrono ulteriori informazioni sulle caratteristiche delle banconote contraffatte rispetto alle prime due componenti principali.
+# "Top" si trova nel secondo quadrante in alto a sinistra, indicando una caratteristica estrema o unica delle banconote contraffatte rispetto agli altri dati.
+# "Bottom" si trova nel primo quadrante, a metà quadrante, indicando una caratteristica peculiare delle banconote contraffatte più vicina all'origine rispetto alle banconote genuine.
+# "Diagonal" si trova sull'origine, mentre "Right", "Left" e "Length" sono disposte vicino all'origine, con "Right" quasi all'origine e "Left" e "Length" leggermente al di sotto. Ciò suggerisce che queste caratteristiche potrebbero essere comuni a tutte le banconote contraffatte o contribuire minimamente alla varianza nei dati.
+# Questo commento fornisce una panoramica delle caratteristiche peculiari del grafico CA delle banconote contraffatte e delle possibili interpretazioni delle posizioni delle etichette rispetto ai dati rappresentati.
+
+
+
+# Grafico Dim3-Dim4
+
+# Grafico per le banconote genuine: Dim3-Dim4
+fviz_ca_biplot(ca_result_genuine, axes = c(3, 4), geom = c("point", "text"),
+               col.ind = "green", title = "CA Plot - Genuine Banknotes: Dim3-Dim4")
+
+# Grafico per le banconote contraffatte: Dim3-Dim4
+fviz_ca_biplot(ca_result_counterfeit, axes = c(3, 4), geom = c("point", "text"),
+               col.ind = "purple", title = "CA Plot - Counterfeit Banknotes: Dim3-Dim4")
+
+# Grafico delle Banconote Genuine:
+#
+# Sull'asse y, rappresentante la quarta dimensione con una variazione dell'0.5%, e sull'asse x, corrispondente alla terza dimensione con una variazione dell'1.4%, si osserva una distribuzione delle variabili all'interno dei quadranti.
+# Nel primo quadrante del grafico, si trovano le variabili "Diagonal", "Top" (allineate sull'asse x) e "Bottom", posizionata leggermente più in alto e a destra rispetto alla linea dell'asse x.
+# Nel secondo quadrante, le variabili "Right" e "Left" non raggiungono l'asse y e non sono molto distanti dall'origine né tra loro.
+# Nel terzo quadrante, la variabile "Length" è molto vicina ai valori negativi dell'asse y.
+#
+#
+# Grafico delle Banconote Contraffatte:
+#
+# Sull'asse y, rappresentante la quarta dimensione con una variazione dello 0.3%, e sull'asse x, corrispondente alla terza dimensione con una variazione dell'0.8%, si osserva una distribuzione delle variabili all'interno dei quadranti.
+# Nel primo quadrante del grafico, si trovano le variabili "Bottom" e "Top", posizionate insieme e allineate sull'asse x. Poco più in alto e a sinistra, si trova la variabile "Left", mentre ancora più in alto, verso i valori positivi dell'asse y, si trova la variabile "Right".
+# Nel secondo quadrante, la variabile "Diagonal" è posizionata sui valori negativi dell'asse x, piuttosto lontano dall'origine. Nel quarto quadrante, si trova la variabile "Length", anch'essa vicina ai valori negativi dell'asse y.
+#
+# Considerazioni Comparative:
+#
+# Le percentuali di variazione nelle dimensioni indicano che la quarta dimensione ha una variazione minore rispetto alla terza dimensione nei dati delle banconote contraffatte. Tuttavia, le considerazioni comparative rimangono valide, poiché la distribuzione dei dati e la loro complessità influenzano ancora le differenze osservate tra banconote genuine e contraffatte.
+
+
+
+
+
+
+"Analisi di Misture tramite Modello di Mistura Gaussiano (GMM) per Banconote Genuine e Contraffatte"
+
+# Misture Gaussiane
+
+# Carica il pacchetto Mclust per l'analisi di misture
+library(mclust)
+
+# Crea banknote_numeric senza la variabile Status
+banknote_numeric <- banknote[, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")]
+
+# Esegui un'analisi di misture con GMM
+fit <- Mclust(banknote_numeric, G = 2)  # Con 2 componenti
+
+# Ottieni le assegnazioni dei cluster per ciascuna osservazione e le relative probabilità
+cluster_results <- predict(fit)
+
+# Estrai le assegnazioni dei cluster e le probabilità associate
+cluster_assignments <- cluster_results$classification
+cluster_probabilities <- cluster_results$z
+
+# Assegna colori diversi alle banconote genuine e contraffatte
+genuine_color <- "blue"
+counterfeit_color <- "red"
+
+# Crea un vettore di colori basato sullo status delle banconote
+colors <- ifelse(banknote_numeric$Status == 1, genuine_color, counterfeit_color)
+
+# Visualizza le assegnazioni dei cluster e le relative probabilità
+print(data.frame(Cluster = cluster_assignments, Probabilità_Cluster1 = cluster_probabilities[, 1], Probabilità_Cluster2 = cluster_probabilities[, 2]))
+
+# Calcola i centroidi dei cluster
+cluster_centers <- t(fit$parameters$mean)
+
+# Aggiungi output numerico dei centroidi
+print("Centroidi dei Cluster:")
+print(cluster_centers)
+
+# Calcola le statistiche dei cluster
+cluster_stats <- summary(fit)
+
+# Aggiungi output numerico delle statistiche dei cluster
+print("Statistiche dei Cluster:")
+print(cluster_stats)
+
+# Assegnazioni dei Cluster e Relative Probabilità:
+# Le assegnazioni dei cluster indicano a quale gruppo appartiene ciascuna osservazione nel dataset. Ad esempio, l'osservazione 1 è stata assegnata al cluster 2.
+# Le probabilità associate forniscono una misura della certezza con cui ogni osservazione è stata assegnata al suo cluster. Ad esempio, l'osservazione 1 ha una probabilità di appartenere al cluster 2 vicina a 1, indicando un'assegnazione molto sicura.
+
+# Centroidi dei Cluster:
+# I centroidi dei cluster rappresentano il "centroide" di ciascun cluster nello spazio delle variabili. Ad esempio, il cluster 1 ha un centroide con i seguenti valori per le variabili: Lunghezza = 214.82, Larghezza = 130.30, Altezza = 10.51, ecc. Questi valori medi possono essere utilizzati per caratterizzare il cluster.
+
+# Statistiche dei Cluster:
+# Il log-likelihood (-755.4051) fornisce una misura della bontà di adattamento del modello di mistura gaussiana ai dati. Maggiore è il log-likelihood, migliore è il modello.
+# BIC (-1717.445) e ICL (-1717.493) sono criteri utilizzati per selezionare il miglior modello. Valori più bassi di BIC e ICL indicano un modello migliore. Nel caso specifico, questi valori indicano che il modello ha una buona aderenza ai dati e potrebbe essere un buon modello per l'analisi di clustering.
+
+# Crea il grafico dell'analisi di misture
+plot(fit, what = "classification")
+
+# Aggiungi i punti dei dati al grafico, utilizzando i colori assegnati
+points(banknote_numeric[, 1], banknote_numeric[, 2], col = colors, pch = 16)
+
+# Aggiungi la legenda
+legend("topright", legend = unique(cluster_assignments), col = 1:length(unique(cluster_assignments)), pch = 16)
+
+# Lunghezza (Length) vs Posizione Sinistra (Left):
+# La distribuzione dei punti evidenzia che le banconote genuine (rappresentate in blu) tendono ad avere una lunghezza variabile, con una predominanza di punti blu sulla destra e punti rossi (banconote contraffatte) sulla sinistra. Questa disposizione suggerisce una correlazione tra la lunghezza delle banconote e la loro posizione sinistra, indicando una maggiore variabilità nelle lunghezze delle banconote genuine rispetto a quelle contraffatte.
+
+# Lunghezza (Length) vs Posizione Destra (Right):
+# La relazione tra lunghezza e posizione destra evidenzia che le banconote genuine mostrano una maggiore ampiezza grafica rispetto alle banconote contraffatte. I punti blu, che rappresentano le banconote genuine, sono distribuiti principalmente sulla destra, mentre i punti rossi (banconote contraffatte) sono concentrati sulla sinistra. Questa disposizione suggerisce una differenza significativa nella distribuzione delle lunghezze tra i due tipi di banconote.
+
+# Lunghezza (Length) vs Posizione Inferiore (Bottom):
+# La disposizione dei punti indica che le banconote genuine sono generalmente più lunghe delle banconote contraffatte, con una concentrazione di punti blu nella parte superiore e punti rossi nella parte inferiore. Questa relazione suggerisce che la lunghezza delle banconote possa essere un fattore discriminante tra banconote genuine e contraffatte, con una maggiore variazione nelle lunghezze delle banconote genuine.
+
+# Lunghezza (Length) vs Posizione Superiore (Top):
+# La relazione tra lunghezza e posizione superiore mostra una concentrazione di punti blu nella parte superiore del grafico, indicando che le banconote genuine tendono ad essere più lunghe rispetto alle banconote contraffatte nella parte superiore. Questa relazione evidenzia una differenza nelle lunghezze delle banconote in base alla loro posizione verticale.
+
+# Lunghezza (Length) vs Diagonale (Diagonal):
+# La distribuzione dei punti indica che le banconote genuine e contraffatte mostrano modelli distinti in relazione alla lunghezza e alla diagonale. I punti blu sono più concentrati verso l'alto a sinistra, mentre i punti rossi sono più compatti verso il basso a destra. Questo suggerisce una correlazione complessa tra la lunghezza delle banconote e la loro disposizione diagonale.
+
+# Posizione Sinistra (Left) vs Lunghezza (Length):
+# Nel grafico Left vs Length, si osserva una distribuzione decrescente dei punti blu e rossi da sinistra a destra. Le banconote genuine sono più presenti sulla destra, mentre le banconote contraffatte sono concentrate sulla sinistra. Questa relazione suggerisce una possibile correlazione tra la posizione sinistra delle banconote e la loro lunghezza.
+
+# Posizione Sinistra (Left) vs Posizione Destra (Right):
+# La relazione tra la posizione sinistra e destra evidenzia un ordine decrescente da sinistra a destra, con le banconote genuine sulla destra e le banconote contraffatte sulla sinistra. Questa disposizione suggerisce una differenza significativa nella posizione laterale tra i due tipi di banconote.
+
+# Posizione Sinistra (Left) vs Posizione Inferiore (Bottom):
+# Nel grafico Left vs Bottom, i punti rossi sono parzialmente dispersi sulla sinistra, mentre i punti blu si concentrano sulla destra. Tutti i punti sembrano convergere verso la parte superiore del grafico. Questa disposizione suggerisce una possibile correlazione tra la posizione sinistra delle banconote e la loro posizione inferiore.
+
+# Posizione Sinistra (Left) vs Posizione Superiore (Top):
+# I punti rossi e blu si trovano sulla zona destra del grafico, con una tendenza verso l'alto. Questa relazione indica una possibile correlazione tra la posizione sinistra delle banconote e la loro posizione superiore.
+
+# Posizione Sinistra (Left) vs Diagonale (Diagonal):
+# In questo grafico, si osserva una distribuzione complessa con i punti blu che tendono verso sinistra e i punti rossi staccati sulla destra. Questa disposizione suggerisce una correlazione tra la posizione sinistra delle banconote e la loro disposizione diagonale.
+
+# Posizione Destra (Right) vs Lunghezza (Length):
+# La relazione tra la posizione destra e la lunghezza mostra una distribuzione quasi verticale con i punti blu (banconote genuine) nella parte superiore seguiti dai punti rossi (banconote contraffatte) nella parte inferiore. Questo suggerisce una correlazione tra la posizione laterale delle banconote e la loro lunghezza, con una predominanza di banconote genuine più lunghe nella parte superiore del grafico.
+
+# Posizione Destra (Right) vs Posizione Sinistra (Left):
+# Nel grafico Right vs Left, si osserva un ordine crescente da sinistra a destra, con i punti rossi (banconote contraffatte) sulla sinistra e i punti blu (banconote genuine) sulla destra. Questa disposizione evidenzia una differenza significativa nella posizione laterale tra i due tipi di banconote.
+
+# Posizione Destra (Right) vs Posizione Inferiore (Bottom):
+# Nel grafico Right vs Bottom, i punti rossi sono più bassi a sinistra, mentre i punti blu sono leggermente più alti a destra. Questa disposizione indica una correlazione tra la posizione laterale delle banconote e la loro posizione inferiore.
+
+# Posizione Destra (Right) vs Posizione Superiore (Top):
+# La relazione tra la posizione destra e la posizione superiore mostra una distribuzione crescente verso destra, con i punti rossi sulla sinistra e i punti blu sulla destra. Questo suggerisce una correlazione tra la posizione laterale delle banconote e la loro posizione verticale.
+
+# Posizione Destra (Right) vs Diagonale (Diagonal):
+# Nel grafico Right vs Diagonal, i punti blu sono concentrati più in alto a sinistra, mentre i punti rossi sono staccati più in basso a destra. Questa disposizione suggerisce una correlazione tra la posizione laterale delle banconote e la loro disposizione diagonale.
+
+# Posizione Inferiore (Bottom) vs Lunghezza (Length):
+# La relazione tra la posizione inferiore e la lunghezza mostra un andamento quasi verticale con i punti blu sopra e i punti rossi sotto. Questo suggerisce una correlazione tra la posizione verticale delle banconote e la loro lunghezza.
+
+# Posizione Inferiore (Bottom) vs Posizione Sinistra (Left):
+# Nel grafico Bottom vs Left, i punti rossi (banconote contraffatte) si trovano nella parte bassa-centrale, tendendo verso destra, mentre i punti blu (banconote genuine) sono più in alto con un andamento ondeggiante. Questa disposizione suggerisce una correlazione complessa tra la posizione inferiore e la posizione sinistra delle banconote.
+
+# Posizione Inferiore (Bottom) vs Posizione Destra (Right):
+# La distribuzione dei punti nel grafico Bottom vs Right mostra una disposizione centrale dei punti rossi e blu, indicando una correlazione tra la posizione inferiore e la posizione laterale delle banconote.
+
+# Posizione Inferiore (Bottom) vs Posizione Superiore (Top):
+# Nel grafico Bottom vs Top, si osserva una nuvola rossa nella parte inferiore-centrale del grafico e una distribuzione più dispersa di punti blu in alto a destra, che tocca appena i punti rossi. Entrambi i gruppi tendono a un ordine descrescente.
+
+# Posizione Inferiore (Bottom) vs Diagonale (Diagonal):
+# La disposizione dei punti nel grafico Bottom vs Diagonal mostra i punti blu che si disperdono verso sinistra dall'alto del grafico, mentre i punti rossi sono compatti nella parte bassa a destra, staccati dai blu. Questa relazione evidenzia una correlazione tra la posizione inferiore delle banconote e la loro disposizione diagonale.
+
+# Posizione Superiore (Top) vs Lunghezza (Length):
+# Nel grafico Top vs Length, si osserva una distribuzione di punti con i blu sopra e i rossi sotto, indicando una correlazione tra la posizione verticale delle banconote e la loro lunghezza. Le banconote genuine (blu) tendono ad essere più lunghe rispetto alle banconote contraffatte (rosse).
+
+# Posizione Superiore (Top) vs Posizione Sinistra (Left):
+# La relazione tra la posizione superiore e la posizione sinistra mostra una distribuzione crescente di punti rossi e blu verso l'alto a destra del grafico. Questo suggerisce una correlazione tra la posizione verticale delle banconote e la loro posizione sinistra.
+
+# Posizione Superiore (Top) vs Posizione Destra (Right):
+# Nel grafico Top vs Right, si osserva una disposizione crescente dei punti rossi e blu verso destra. Questa relazione indica una correlazione tra la posizione verticale delle banconote e la loro posizione laterale.
+
+# Posizione Superiore (Top) vs Posizione Inferiore (Bottom):
+# La distribuzione dei punti nel grafico Top vs Bottom mostra una nuvola rossa nella parte inferiore-centrale del grafico e una distribuzione più dispersa di punti blu in alto a destra, che tocca appena i punti rossi. Entrambi i gruppi tendono a un ordine descrescente.
+
+# Posizione Superiore (Top) vs Diagonale (Diagonal):
+# Nel grafico Top vs Diagonal, i punti blu sono più bassi verso destra, mentre i punti rossi sono staccati più in alto verso il centro. Questa disposizione suggerisce una correlazione tra la posizione verticale delle banconote e la loro disposizione diagonale.
+
+# Diagonale vs Lunghezza (Length):
+# La distribuzione dei punti nel grafico Diagonal vs Length mostra i punti blu sopra, verticalmente sopra i punti rossi, con una tendenza a disperdersi parzialmente entrambi i gruppi orizzontalmente. Questo suggerisce una correlazione complessa tra la lunghezza delle banconote e la loro disposizione diagonale.
+
+# Diagonale vs Posizione Sinistra (Left):
+# Nel grafico Diagonal vs Left, i punti blu tendono leggermente verso destra in modo compatto, mentre i punti rossi sono più dispersi verso destra. Questa disposizione suggerisce una correlazione tra la posizione diagonale delle banconote e la loro posizione sinistra.
+
+# Diagonale vs Posizione Destra (Right):
+# I punti rossi sono posizionati più in alto a sinistra nel grafico Diagonal vs Right, mentre i punti blu sono staccati verso il basso a destra. Questa disposizione indica una correlazione tra la posizione diagonale delle banconote e la loro posizione laterale.
+
+# Diagonale vs Posizione Inferiore (Bottom):
+# Nel grafico Diagonal vs Bottom, i punti rossi sono compatti in alto a sinistra, mentre i punti blu si dispongono orizzontalmente dal centro verso sinistra, disperdendosi. Questa relazione suggerisce una correlazione tra la posizione diagonale delle banconote e la loro posizione inferiore.
+
+# Diagonale vs Posizione Superiore (Top):
+# Nel grafico Diagonal vs Top, i punti rossi sono sopra e i blu sono sotto, staccati, con entrambi i gruppi che tendono verso destra. I punti rossi sono leggermente più centrali rispetto ai blu. Questa disposizione suggerisce una correlazione complessa tra la posizione diagonale delle banconote e la loro posizione verticale.
+
+
+
+
+
+"Valutazione dell'Analisi di Misture tramite Indice di Dunn"
+
+# Carica il pacchetto fpc
+library(fpc)
+
+# Calcola la matrice delle distanze
+dist_matrix <- dist(banknote_numeric)
+
+# Calcola l'indice di Dunn per l'analisi di misture
+dunn_index <- cluster.stats(dist_matrix, fit$classification)$dunn
+
+# Visualizza l'indice di Dunn
+print(dunn_index)
+
+
+# L'indice di Dunn è una misura che valuta la separazione tra i cluster rispetto alla dispersione all'interno dei cluster. Un valore basso dell'indice di Dunn indica una bassa separazione tra i cluster rispetto alla dispersione dei dati all'interno dei cluster stessi.
+# Ciò potrebbe indicare che non vi è una chiara separazione spaziale o distinzione tra i cluster identificati dal modello di mistura gaussiana. In altre parole, potrebbe essere difficile delineare confini netti tra i cluster nello spazio delle variabili.
+# Le possibili ragioni per un basso valore dell'indice di Dunn potrebbero includere:
+# - Sovrapposizione significativa tra le distribuzioni dei cluster: Se le distribuzioni dei cluster si sovrappongono considerevolmente, diventa difficile separarle chiaramente.
+# - Cluster di dimensioni simili: Se i cluster hanno dimensioni simili o distribuzioni simili delle osservazioni, potrebbe essere difficile distinguere tra di loro.
+# - Variabilità interna elevata: Se la variabilità all'interno dei cluster è elevata, potrebbe essere difficile per il modello identificare confini chiari tra di essi.
+# In sostanza, nonostante il modello di mistura gaussiana abbia assegnato le osservazioni a cluster specifici, l'indice di Dunn suggerisce che questi cluster potrebbero non essere molto ben separati nello spazio delle variabili, il che potrebbe essere dovuto a varie complessità nei dati o nelle distribuzioni dei cluster stessi.
+
+
+
+
+ "Analisi Clustering K-means per le banconote originali e contraffatte"
+ 
+ # Seleziona il dataset banknote_CA
+ banknote_means <- banknote_CA
+ 
+ # Esegui la standardizzazione dei dati per le banconote genuine
+ scaled_genuine <- scale(banknote_CA[banknote_CA$Status == 1, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")])
+ 
+ # Esegui la standardizzazione dei dati per le banconote contraffatte
+ scaled_counterfeit <- scale(banknote_CA[banknote_CA$Status == 2, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")])
+ 
+ # Scegli il numero di cluster (k)
+ k <- 3  # Ad esempio, prova con 3 cluster
+ 
+ # Esegui l'algoritmo k-means per le banconote genuine
+ kmeans_result_genuine <- kmeans(scaled_genuine, centers = k)
+ 
+ # Esegui l'algoritmo k-means per le banconote contraffatte
+ kmeans_result_counterfeit <- kmeans(scaled_counterfeit, centers = k)
+ 
+ # Variabili da visualizzare
+ variables <- c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")
+ 
+ # Visualizza i grafici
+ par(mfrow = c(2, 3), mar = c(4, 4, 2, 1))
+ for (i in 1:length(variables)) {
+   # Plot per le banconote genuine
+   plot(scaled_genuine[, i], col = kmeans_result_genuine$cluster, main = paste("Genuine -", variables[i]), cex.main = 0.8, cex.axis = 0.8)
+   points(kmeans_result_genuine$centers[, i], col = 1:k, pch = 8, cex = 2)
+   
+   # Plot per le banconote contraffatte
+   plot(scaled_counterfeit[, i], col = kmeans_result_counterfeit$cluster, main = paste("Counterfeit -", variables[i]), cex.main = 0.8, cex.axis = 0.8)
+   points(kmeans_result_counterfeit$centers[, i], col = 1:k, pch = 8, cex = 2)
+ }
+ 
+ # Commento sull'analisi delle banconote genuine e contraffatte
+ 
+ # Introduzione:
+ # Nell'analisi delle banconote genuine e contraffatte, è essenziale comprendere le differenze nelle loro caratteristiche e distribuzioni. 
+ # Osservando le sei variabili fondamentali, emergono pattern distintivi che evidenziano le peculiarità di ciascun tipo di banconota.
+ 
+ # Analisi delle banconote genuine:
+ # Per le banconote genuine, la distribuzione delle variabili mostra un'organizzazione particolare:
+ # - Per la variabile Length, i cluster rosa, nero e verde si sviluppano tra la parte centrale ed alta del grafico (y -3 a +2), mantenendo i centroidi equidistanti verticalmente. Questo potrebbe indicare una distribuzione uniforme della lunghezza delle banconote genuine.
+ # - Per la variabile Left, i cluster si espandono ampiamente soprattutto nella zona centrale del grafico (y -2 a +3), con il centroide rosa isolato e i centroidi nero e verde più vicini. Questo suggerisce una maggiore variazione nella posizione del margine sinistro delle banconote genuine.
+ # - Per la variabile Right, i pallini dei tre colori si espandono soprattutto nella parte bassa del grafico (y -2 a +4), con i centroidi rosa, nero e verde distanziati. Questo potrebbe indicare una distribuzione uniforme della posizione del margine destro delle banconote genuine.
+ # - Per la variabile Bottom, i centroidi nero, rosa e verde sono equidistanti, con i pallini che si espandono verso la zona bassa/centrale del grafico (y -1 a +3), con qualche pallino disperso sopra e sotto. Questo potrebbe indicare una variazione nella posizione del margine inferiore delle banconote genuine.
+ # - Per la variabile Top, i centroidi rosa e verde sono soprapposti più in basso, mentre il nero è posizionato più in alto, con i pallini che si espandono soprattutto in zona -4 a +2 sull'asse y. Questo suggerisce una distribuzione uniforme della posizione del margine superiore delle banconote genuine.
+ # - Per la variabile Diagonal, i centroidi nero, verde e rosa sono distanti uguali, con i pallini che si espandono da -4 a +2 sull'asse y. Questo potrebbe indicare una variazione uniforme dell'inclinazione delle banconote genuine.
+ 
+ # Analisi delle banconote contraffatte:
+ # D'altra parte, le banconote contraffatte mostrano un'organizzazione leggermente diversa delle variabili:
+ # - Per la variabile Length, i puntini si sviluppano in ordine verde, rosa e nero verso il basso, mantenendo una maggiore concentrazione (y -2 a +4) rispetto alle banconote genuine. Questo potrebbe indicare una distribuzione più uniforme della lunghezza delle banconote contraffatte rispetto alle genuine.
+ # - Per la variabile Left, i pallini si espandono ampiamente su tutto il grafico, con maggiore concentrazione tra -2 e +2 sull'asse y. Questo suggerisce una variazione più uniforme nella posizione del margine sinistro delle banconote contraffatte.
+ # - Per la variabile Right, i pallini si espandono mantenendo la zona centrale del grafico soprattutto tra -3 e +3 sull'asse y. Questo potrebbe indicare una distribuzione più uniforme della posizione del margine destro delle banconote contraffatte rispetto alle genuine.
+ # - Per la variabile Bottom, i centroidi nero e verde sono più attaccati, mentre il rosa è posizionato più in basso, con i pallini che si espandono soprattutto nella parte più centrale ed alta del grafico (y -2 a +2). Questo suggerisce una variazione più uniforme nella posizione del margine inferiore delle banconote contraffatte.
+ # - Per la variabile Top, il centroide rosa è posizionato più in alto, mentre il nero e il verde sono attaccati più in basso, con i pallini che si espandono soprattutto sulla parte più alta del grafico (y -3 a +2). Questo potrebbe indicare una distribuzione più uniforme della posizione del margine superiore delle banconote contraffatte rispetto alle genuine.
+ # - Per la variabile Diagonal, i centroidi verde, nero e rosa sono distanziati uguali, con i pallini che si espandono da -3 a +2 sull'asse y. Questo suggerisce una variazione uniforme dell'inclinazione delle banconote contraffatte.
+ 
+ # Conclusioni:
+ # In conclusione, l'analisi delle sei variabili delle banconote genuine e contraffatte rivela dettagli significativi nelle loro distribuzioni e nei pattern di clustering. 
+ # Questa comprensione approfondita delle caratteristiche delle banconote e dei relativi modelli di clustering è essenziale per distinguere con precisione tra banconote genuine e contraffatte.
+ 
+ 
+ # In generale, dalle descrizioni fornite, emergono diverse differenze tra le distribuzioni delle variabili per le banconote genuine e contraffatte:
+ 
+ # Uniformità della distribuzione: Le banconote genuine mostrano spesso una distribuzione più uniforme delle variabili rispetto alle contraffatte, come evidenziato dalla posizione più equidistante dei centroidi e dalla distribuzione dei punti meno concentrata per le contraffatte.
+ 
+ # Variazione nella posizione dei centroidi: Nei grafici delle banconote contraffatte, spesso i centroidi dei cluster si trovano a posizioni diverse rispetto a quelli delle banconote genuine, indicando una variazione nella posizione media delle caratteristiche misurate.
+ 
+ # Differenze nei pattern di clustering: I pattern di clustering, come evidenziato dalle descrizioni delle variabili, possono essere diversi tra banconote genuine e contraffatte, indicando una differenza nella struttura dei dati tra i due gruppi.
+ 
+ 
+ 
+ 
+ # Output numerico K-means
+ 
+ # Inertia per le banconote genuine
+ inertia_genuine <- kmeans_result_genuine$tot.withinss
+ cat("Inertia per le banconote genuine:", inertia_genuine)
+ 
+ # Inertia per le banconote contraffatte
+ inertia_counterfeit <- kmeans_result_counterfeit$tot.withinss
+ cat("\nInertia per le banconote contraffatte:", inertia_counterfeit)
+ 
+ # Assegnazioni dei cluster per le banconote genuine
+ cluster_assignments_genuine <- kmeans_result_genuine$cluster
+ cat("Assegnazioni dei cluster per le banconote genuine:\n")
+ print(cluster_assignments_genuine)
+ 
+ # Coordinate dei centroidi per le banconote genuine
+ centroid_coordinates_genuine <- kmeans_result_genuine$centers
+ cat("\nCoordinate dei centroidi per le banconote genuine:\n")
+ print(centroid_coordinates_genuine)
+ 
+ # Assegnazioni dei cluster per le banconote contraffatte
+ cluster_assignments_counterfeit <- kmeans_result_counterfeit$cluster
+ cat("\nAssegnazioni dei cluster per le banconote contraffatte:\n")
+ print(cluster_assignments_counterfeit)
+ 
+ # Coordinate dei centroidi per le banconote contraffatte
+ centroid_coordinates_counterfeit <- kmeans_result_counterfeit$centers
+ cat("\nCoordinate dei centroidi per le banconote contraffatte:\n")
+ print(centroid_coordinates_counterfeit)
+ 
+ # Aggiunta: Validazione del clustering
+ library(cluster)  # Carica il pacchetto per la validazione del clustering
+ 
+ # Calcola la distanza euclidea per le banconote genuine
+ distances_genuine <- dist(scale(banknote_CA[banknote_CA$Status == 1, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")]))
+ 
+ # Calcola l'indice di Silhouette per le banconote genuine
+ silhouette_genuine <- silhouette(kmeans_result_genuine$cluster, distances_genuine)
+ 
+ # Calcola la distanza euclidea per le banconote contraffatte
+ distances_counterfeit <- dist(scale(banknote_CA[banknote_CA$Status == 2, c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")]))
+ 
+ # Calcola l'indice di Silhouette per le banconote contraffatte
+ silhouette_counterfeit <- silhouette(kmeans_result_counterfeit$cluster, distances_counterfeit)
+ 
+ # Visualizza i risultati dell'indice di Silhouette
+ cat("Silhouette per le banconote genuine:\n")
+ print(silhouette_genuine)
+ 
+ cat("\nSilhouette per le banconote contraffatte:\n")
+ print(silhouette_counterfeit)
+ 
+
+# Analisi dei risultati del clustering per le banconote genuine e contraffatte
+
+# Risultati per le banconote genuine:
+# L'inertia per le banconote genuine è 362.6503, il che indica una buona coesione all'interno dei cluster. 
+# La silhouette media per i tre cluster è di 0.1796, 0.1904 e 0.2405 rispettivamente. Questi valori suggeriscono una buona separazione tra i cluster e una buona aderenza delle osservazioni ai loro cluster.
+
+# Risultati per le banconote contraffatte:
+# L'inertia per le banconote contraffatte è 382.5412, indicando una coesione ragionevole all'interno dei cluster.
+# La silhouette media per i tre cluster è 0.2819, 0.1088 e 0.1770. Questi valori indicano una separazione meno chiara tra i cluster e una minore aderenza delle osservazioni ai loro cluster rispetto alle banconote genuine.
+
+# Confronto:
+# In generale, le banconote genuine sembrano avere una migliore coesione e una maggiore separazione tra i cluster rispetto alle banconote contraffatte. 
+# Tuttavia, entrambi i tipi di banconote mostrano alcuni cluster con silhouette più basse, il che potrebbe indicare sovrapposizioni o separazioni meno chiare tra alcune caratteristiche delle banconote.
+
+ 
+ 
+ "Clustering Analisi con K-means"
+ 
+ 
+ # Dopo aver proceduto con l'analisi di clustering con k-means, è importante esaminare l'andamento delle variabili per le banconote genuine e contraffatte.
+ 
+ # Analisi delle Variabili:
+ # - Si utilizzano grafici per esaminare l'andamento delle variabili numeriche per le banconote genuine e contraffatte.
+ # - Questo passo permette di comprendere la distribuzione e le possibili differenze nelle caratteristiche delle banconote genuine e contraffatte.
+ 
+ # Grafici di Andamento:
+ # - Per ogni variabile numerica presente nel dataset, vengono creati boxplot per visualizzare la distribuzione dei valori in base al tipo di banconota.
+ # - Questi grafici consentono di individuare eventuali pattern o discrepanze nelle variabili tra banconote genuine e contraffatte.
+ 
+ # Dopo aver esaminato l'andamento delle variabili, si procede con l'analisi di clustering utilizzando l'algoritmo k-means.
+ # - Si utilizzano le variabili numeriche per raggruppare le banconote in cluster simili in base ai loro attributi numerici.
+ 
+ # Calcola il numero totale di variabili
+ num_variables <- 6
+ 
+ # Imposta il numero massimo di grafici per schermata
+ max_plots_per_page <- 2
+ 
+ # Calcola il numero totale di pagine
+ num_pages <- ceiling(num_variables / max_plots_per_page)
+ 
+ # Colori per le banconote genuine e contraffatte
+ genuine_color <- "blue"
+ counterfeit_color <- "green"
+ 
+ # Ciclo attraverso le pagine
+ for (page in 1:num_pages) {
+   # Calcola gli indici delle variabili da visualizzare su questa pagina
+   start_index <- (page - 1) * max_plots_per_page + 1
+   end_index <- min(start_index + max_plots_per_page - 1, num_variables)
+   
+   # Imposta il layout per questa pagina
+   num_plots_on_page <- end_index - start_index + 1
+   par(mfrow = c(1, num_plots_on_page), mar = c(4, 4, 2, 1))
+   
+   # Ciclo per visualizzare i grafici per le variabili su questa pagina
+   for (i in start_index:end_index) {
+     # Seleziona la variabile corrente
+     variable <- banknote_CA[, i + 1]  # Considerando che la prima colonna è lo Status
+     
+     # Plot per le banconote genuine
+     plot(variable[banknote_CA$Status == 1], col = genuine_color, 
+          main = paste("Genuine -", names(banknote_CA)[i + 1]))
+     
+     # Aggiungi i centroidi per le banconote genuine
+     points(kmeans_result_genuine$centers[, i], col = genuine_color, pch = 8, cex = 2)
+     
+     # Plot per le banconote contraffatte
+     plot(variable[banknote_CA$Status == 2], col = counterfeit_color, 
+          main = paste("Counterfeit -", names(banknote_CA)[i + 1]))
+     
+     # Aggiungi i centroidi per le banconote contraffatte
+     points(kmeans_result_counterfeit$centers[, i], col = counterfeit_color, pch = 8, cex = 2)
+   }
+   
+   # Attendere un po' di tempo prima di passare automaticamente alla prossima pagina
+   Sys.sleep(3)
+ }
+ 
+ # Commento sulla distribuzione delle variabili delle banconote genuine e contraffatte
+ 
+ # Variabile LENGHT:
+ # Per le banconote genuine, la distribuzione dei punti si concentra principalmente tra il terzo e il quarto segmento sull'asse y, con alcune osservazioni sparse nei segmenti circostanti. Questo suggerisce una distribuzione relativamente uniforme della lunghezza per le banconote genuine.
+ # D'altra parte, per le banconote contraffatte, i punti sono distribuiti in modo più disperso, iniziando dal secondo segmento sull'asse y e concentrandosi principalmente tra il terzo e il quarto segmento. Questa distribuzione suggerisce una maggiore variabilità nella lunghezza delle banconote contraffatte.
+ 
+ # Variabile LEFTt:
+ # Per le banconote genuine, i punti sono concentrati principalmente nei segmenti 3 e 4 sull'asse y, con una presenza più dispersa nei segmenti 2 e 5. Questo suggerisce una consistenza nella posizione sinistra delle banconote genuine.
+ # Per le banconote contraffatte, la distribuzione dei punti è più sparsa, con concentrazioni principalmente nei segmenti 4-5-6 e valori dispersi nei segmenti 2-3-7. Questo indica una maggiore variabilità nella posizione sinistra delle banconote contraffatte.
+ 
+ # Variabile RIGHT:
+ # Per le banconote genuine, i punti si concentrano principalmente nel secondo e terzo segmento sull'asse y, con valori nel quarto segmento. Per l'asse x, le maggiori concentrazioni si trovano intorno ai valori 0-20 e intorno a 60.
+ # Per le banconote contraffatte, la distribuzione dei punti è concentrata soprattutto nel terzo segmento sull'asse y, con valori sparsi anche nei segmenti 2 e 4. Per l'asse x, le concentrazioni principali si trovano intorno a 20, intorno a 40 e intorno a 80-90.
+ 
+ # Variabile BOTTOM:
+ # Per le banconote genuine, la distribuzione dei punti si concentra principalmente tra la prima e la quarta sezione sull'asse y, con alcuni punti dispersi nella quinta sezione. Sull'asse x, i valori si concentrano principalmente tra 0 e 20.
+ # Per le banconote contraffatte, la distribuzione dei punti è distribuita su sei segmenti sull'asse y, con concentrazioni principalmente tra la terza, quarta e quinta sezione e alcuni valori più dispersi sui segmenti due e sei. Sull'asse x, i valori si concentrano tra 20 e 60, senza particolari sovrapposizioni.
+ 
+ # Variabile TOP:
+ # Sulla variabile TOP per le banconote genuine, i punti si concentrano principalmente tra il terzo e il quarto segmento sull'asse y, mentre sull'asse x si osservano maggiori concentrazioni intorno a 20, 40 e 60.
+ # Le banconote contraffatte mostrano una distribuzione dei punti sulla variabile TOP su sette segmenti sull'asse y, con maggiore concentrazione dal terzo al settimo segmento. Sull'asse x, si concentrano principalmente intorno a 0-20, 40 e 80.
+ 
+ # Variabile DIAGONAL:
+ # I punti sulla variabile DIAGONAL per le banconote genuine si trovano principalmente nei segmenti 4-5-6 sull'asse y, con alcune osservazioni nella zona 3 e una maggiore concentrazione sull'asse x intorno ai valori 60-80.
+ # Per le banconote contraffatte, i punti si concentrano maggiormente nei segmenti 4-5-6 sull'asse y, con pochi punti dispersi nei segmenti inferiori (1-2-3). Sull'asse x, si osserva una concentrazione intorno a 40-60 e 80-90.
+ 
+ # In sintesi, le banconote genuine mostrano una distribuzione più uniforme e consistente rispetto alle banconote contraffatte, che presentano una maggiore variabilità e dispersione nei valori delle variabili esaminate.
+ 
+ 
+ 
+
+" Analisi di Clustering Gerarchico e Visualizzazione dei Risultati"
+
+# Analisi di clustering gerarchico
+
+library(factoextra)
+
+# Calcolo della matrice delle distanze
+dist_matrix <- dist(banknote_means)
+
+# Clustering gerarchico con metodo di linkage "complete"
+hclust_result <- hclust(dist_matrix, method = "complete")
+
+# Definizione dei cluster
+num_clusters <- 4  # Numero di cluster desiderato
+clusters <- cutree(hclust_result, k = num_clusters)
+
+# Colori per i cluster
+cluster_colors <- c("blue", "green", "orange", "purple")  # Elenca i colori per ciascun cluster
+
+# Plot del dendrogramma con la funzione fviz_dend
+fviz_dend(hclust_result, k = num_clusters, cex = 0.5, k_colors = cluster_colors,
+          color_labels_by_k = TRUE, rect = TRUE)
+
+"Il dendrogramma illustra la gerarchia dei cluster identificati attraverso l'analisi di clustering gerarchico completo delle nostre osservazioni. I quattro colori utilizzati rappresentano i diversi cluster identificati nel nostro dataset. Il cluster blu, il più alto nel dendrogramma, è il più numeroso e eterogeneo, occupando una vasta gamma di valori sia sull'asse x che sull'asse y. 
+Questo suggerisce una diversità significativa all'interno del cluster blu. I cluster viola, anche se posizionati più in basso, mostrano una maggiore coesione, come indicato dalle linee di unione più corte, mentre i cluster arancioni e verdi, sebbene posizionati ancora più in basso, sono caratterizzati da una maggiore coesione e concentrazione delle osservazioni.
+
+Il dendrogramma principale mostra una suddivisione tra cluster blu e nero, con una linea di unione che attraversa il dendrogramma. Inoltre, si osserva che la linea più alta dei cluster verdi si unisce alla linea nera, mentre la linea più alta dei cluster arancioni si unisce a quella dei cluster viola. 
+Queste connessioni indicano delle somiglianze o relazioni tra i cluster, nonostante le loro posizioni relative e le dimensioni apparenti nel dendrogramma."
+
+# Creazione del dataframe con i cluster assegnati
+cluster_df <- data.frame(banknote_means, Cluster = as.factor(clusters))
+
+# Creazione dello scatter plot
+scatter_plot <- factoextra::fviz_cluster(list(data = banknote_means, cluster = clusters), geom = "point", 
+                                         ellipse.type = "convex", ellipse.level = 0.68, 
+                                         main = "Scatter Plot con Colori per Cluster",
+                                         ggtheme = theme_minimal(), palette = cluster_colors)
+
+# Visualizzazione dello scatter plot
+print(scatter_plot)
+
+"L'analisi degli scatter plot mostra la gerarchia dei cluster identificati attraverso il clustering gerarchico completo delle osservazioni. Il cluster più grande e eterogeneo è rappresentato dal colore blu, occupando la maggior parte dello spazio sulla sinistra del grafico. Questo cluster comprende una vasta gamma di valori su entrambi gli assi, indicando una diversità significativa tra le osservazioni. 
+ Sulla destra del grafico, si osserva il secondo cluster più grande, rappresentato dal colore arancione, che appare più compatto e concentrato rispetto al cluster blu. All'interno del cluster arancione, sono presenti due sotto-cluster distinti: il cluster viola, con pochi valori compatti, posizionato nella parte superiore destra del cluster arancione, e il cluster verde, con pochi valori sparsi, situato principalmente nella parte mediana del cluster arancione. 
+ Questi sotto-cluster mostrano una maggiore coesione e concentrano i loro valori su specifici intervalli sugli assi x e y. "
+
+
+# Creazione dello scatter plot per le dimensioni 3 e 4
+scatter_plot_dim_3_4 <- factoextra::fviz_cluster(list(data = banknote_means[, c(3, 4)], cluster = clusters), 
+                                                 geom = "point", ellipse.type = "convex", ellipse.level = 0.68,
+                                                 show.clust.cent = FALSE,  # Rimuove i simboli all'interno dei cluster
+                                                 main = "Scatter Plot: Dim 3 vs Dim 4",
+                                                 ggtheme = theme_minimal(), palette = cluster_colors) +
+  labs(x = paste0("Dim 3 (", round(prop.table(table(clusters))[1] * 100, 2), "%)"),
+       y = paste0("Dim 4 (", round(prop.table(table(clusters))[2] * 100, 2), "%)"))  # Impostazione dei nomi degli assi
+
+# Visualizza lo scatter plot per le dimensioni 3 e 4
+print(scatter_plot_dim_3_4)
+
+"L'analisi degli scatter plot mostra la distribuzione dei cluster identificati attraverso l'analisi di clustering delle dimensioni 3 e 4. Il cluster dominante, contraddistinto dal colore blu, occupa la maggior parte dello spazio nel grafico, evidenziando una vasta gamma di valori sia sull'asse x (da -2 a +2) che sull'asse y (da -2 a +1). 
+ All'interno di questo cluster blu, emerge un cluster più piccolo, rappresentato dal colore arancione, il quale si estende leggermente al di fuori del cluster principale verso l'alto a sinistra, con valori sull'asse x compresi tra -1 e +2 e sull'asse y tra -0.5 e +3. Altri sotto-cluster sono osservabili all'interno del cluster arancione: il cluster viola, con valori sull'asse x tra +0.5 e +1.5 e sull'asse y tra -1 e +1, e il cluster verde, principalmente confinato all'interno del cluster viola, con alcuni punti che si estendono leggermente al di fuori verso il cluster arancione, con valori sull'asse x tra 0 e +1.5 e sull'asse y tra -1 e +1. 
+ Questi sotto-cluster evidenziano una maggiore coesione e una distribuzione più concentrata rispetto al cluster principale, suggerendo una specifica suddivisione delle osservazioni su intervalli specifici sugli assi x e y."
+
+
+# Analisi di Clustering: Scatter Plot per Dimensioni 5 e 6
+# Creazione dello scatter plot per le dimensioni 5 e 6
+scatter_plot_dim_5_6 <- factoextra::fviz_cluster(list(data = banknote_means[, c(5, 6)], cluster = clusters), 
+                                                 geom = "point", ellipse.type = "convex", ellipse.level = 0.68,
+                                                 show.clust.cent = FALSE,  # Rimuove i simboli all'interno dei cluster
+                                                 main = "Scatter Plot: Dim 5 vs Dim 6",
+                                                 ggtheme = theme_minimal(), palette = cluster_colors) +
+  labs(x = paste0("Dim 5 (", round(prop.table(table(clusters))[3] * 100, 2), "%)"),
+       y = paste0("Dim 6 (", round(prop.table(table(clusters))[4] * 100, 2), "%)"))  # Impostazione dei nomi degli assi
+
+# Visualizza lo scatter plot per le dimensioni 5 e 6
+print(scatter_plot_dim_5_6)
+
+
+
+"Il grafico mostra un'analisi di clustering delle dimensioni 5 e 6, con le percentuali di varianza spiegata tra parentesi. Sull'asse y è rappresentata la dimensione 6, che spiega il 16.5% della varianza, mentre sull'asse x è rappresentata la dimensione 5, che spiega il 29.5% della varianza.
+
+Il cluster più grande, rappresentato dal colore blu, occupa la maggior parte dello spazio sulla sinistra del grafico, con i punti distribuiti su una vasta gamma di valori sull'asse x (-2 a +0.5) e sull'asse y (-2 a +1). Più in alto rispetto al cluster blu, si trova il cluster verde, il più piccolo di tutti, con pochi valori che si estendono da -0.5 a +0.5 sull'asse x e da 1 a 2 sull'asse y.
+
+Nella parte centrale del grafico, si trova il cluster arancione, che si estende da -0.5 a 1.5 sull'asse x e da 0 a +2 sull'asse y. Infine, poco più a destra, c'è il cluster viola, più piccolo con valori da 1.3 a 2 sull'asse x.
+
+Il cluster verde, seppur il più piccolo tra quelli identificati, si dispone parzialmente sopra il cluster blu, il più grande e eterogeneo. Questo posizionamento suggerisce che, nonostante le dimensioni più ridotte, il cluster verde abbia una qualche sovrapposizione con il cluster blu, indicando possibili somiglianze o relazioni tra le osservazioni nei due cluster."
+
+
+
+
+
+
+"Analisi Discriminante con LDA e QDA: Distribuzione delle Variabili e Classificazione di Banconote Genuine e Contraffatte"
+
+
+"Prima di eseguire l'analisi discriminante con LDA (Linear Discriminant Analysis) e QDA (Quadratic Discriminant Analysis) per classificare le banconote genuine e contraffatte, vengono nuovamente visualizzate le distribuzioni delle variabili chiave. 
+ Questi grafici forniscono una panoramica delle differenze potenziali tra le due categorie di banconote."
+
+# Calcola il numero di righe nel dataset
+N <- nrow(banknote)
+
+# Colori forniti
+colors <- c("red", "blue", "green", "orange", "purple", "pink")
+
+# Imposta il layout dei grafici
+par(mfrow=c(2, 3))
+
+# Lista delle variabili quantitative nel dataset
+numeric_vars <- c("Length", "Left", "Right", "Bottom", "Top", "Diagonal")
+
+# Loop per creare gli istogrammi per le banconote genuine
+for (i in 1:6) {
+  # Istogrammi per le banconote genuine
+  hist(banknote[banknote$Status == "genuine", numeric_vars[i]], col = colors[i], main = paste("Genuine:", numeric_vars[i]), xlab = "", prob = TRUE)
+  # Curva normale per le banconote genuine
+  curve(dnorm(x, mean = mean(banknote[banknote$Status == "genuine", numeric_vars[i]]), sd = sd(banknote[banknote$Status == "genuine", numeric_vars[i]])), 
+        from = min(banknote[banknote$Status == "genuine", numeric_vars[i]]), to = max(banknote[banknote$Status == "genuine", numeric_vars[i]]), 
+        add = TRUE, col = "darkblue", lwd = 2)
+}
+
+# Aggiunta del titolo per le banconote genuine
+mtext("Distribution of Variables for Genuine Banknotes", side = 1, line = 3, cex = 1.4, adj = 1)
+
+# Imposta nuovamente il layout dei grafici
+par(mfrow=c(2, 3))
+
+# Loop per creare gli istogrammi per le banconote contraffatte
+for (i in 1:6) {
+  # Istogrammi per le banconote contraffatte
+  hist(banknote[banknote$Status == "counterfeit", numeric_vars[i]], col = colors[i], main = paste("Counterfeit:", numeric_vars[i]), xlab = "", prob = TRUE)
+  # Curva normale per le banconote contraffatte
+  curve(dnorm(x, mean = mean(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), sd = sd(banknote[banknote$Status == "counterfeit", numeric_vars[i]])), 
+        from = min(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), to = max(banknote[banknote$Status == "counterfeit", numeric_vars[i]]), 
+        add = TRUE, col = "darkblue", lwd = 2)
+}
+
+# Aggiunta del titolo per le banconote contraffatte
+mtext("Distribution of Variables for Counterfeit Banknotes", side = 1, line = 3, cex = 1.4, adj = 1)
+
+# Carica Libreria Mass
+library(MASS)
+
+# Analisi discriminante lineare (LDA)
+zlin <- lda(Status ~ ., banknote)
+
+# Matrice di confusione per LDA
+confusion_matrix_LDA <- table(banknote$Status, predict(zlin)$class)
+
+# Grafico della matrice di confusione LDA con colori personalizzati
+library(corrplot)
+col_matrix_lda <- c("white", "orange", "green", "purple")  # Definisci i colori desiderati
+corrplot(confusion_matrix_LDA, is.corr = FALSE, method = "color", addCoef.col = "black", col = col_matrix_lda)
+
+# Calcola la precisione (accuracy) del modello LDA
+accuracy_LDA <- mean(predict(zlin)$class == banknote$Status) * 100
+accuracy_LDA
+
+# Estrai i valori necessari dalla matrice di confusione per LDA
+tp_lda <- confusion_matrix_LDA["genuine", "genuine"]  # True Positives
+fp_lda <- confusion_matrix_LDA["counterfeit", "genuine"]  # False Positives
+fn_lda <- confusion_matrix_LDA["genuine", "counterfeit"]  # False Negatives
+
+# Calcola precision, recall e F1-score per LDA
+precision_lda <- tp_lda / (tp_lda + fp_lda)
+recall_lda <- tp_lda / (tp_lda + fn_lda)
+f1_score_lda <- 2 * (precision_lda * recall_lda) / (precision_lda + recall_lda)
+
+# Visualizza il risultato
+f1_score_lda
+
+
+# Dopo aver eseguito l'analisi discriminante lineare (LDA) sul dataset banknote, sono stati ottenuti diversi output numerici che forniscono informazioni importanti sulla qualità del modello LDA addestrato. Ecco una descrizione dettagliata di ciascun output:
+
+# 1. Matrice di Confusione:
+#    La matrice di confusione mostra il numero di predizioni corrette e incorrette fatte dal modello LDA. È una tabella 2x2 dove le righe rappresentano le classi reali e le colonne rappresentano le predizioni del modello. I valori diagonalmente sono i predetti correttamente (True Positives), mentre i valori fuori diagonale rappresentano gli errori di classificazione. Ad esempio, il numero di banconote genuine predette correttamente è 99, mentre il numero di banconote genuine erroneamente predette come contraffatte è 1.
+
+# 2. Precisione (Accuracy):
+#    La precisione del modello LDA misura la percentuale di predizioni corrette rispetto al totale delle predizioni effettuate dal modello. È calcolata dividendo il numero totale di predizioni corrette per il numero totale di osservazioni. Nel caso specifico, la precisione è del 99.5%, il che indica che il 99.5% delle predizioni del modello sono corrette.
+
+# 3. Precision, Recall e F1-Score:
+#    Queste sono misure più dettagliate della performance del modello LDA. La precisione rappresenta la percentuale di veri positivi rispetto al totale delle predizioni positive del modello, il richiamo (recall) rappresenta la percentuale di veri positivi rispetto al totale delle osservazioni reali positive, e l'F1-score è una media ponderata della precisione e del richiamo. In questo caso, l'F1-score è 0.9949749, che indica una buona bilanciata tra precisione e richiamo.
+
+# Questi output numerici forniscono una visione dettagliata della performance del modello LDA addestrato sul dataset banknote, consentendo di valutare la sua capacità di classificare correttamente le banconote genuine e contraffatte.
+
+library(corrplot)
+
+# Analisi discriminante quadratica (QDA)
+zqua <- qda(Status ~ ., banknote)
+
+# Matrice di confusione QDA
+confusion_matrix_QDA <- table(banknote$Status, predict(zqua)$class)
+
+# Grafico della matrice di confusione QDA con colori personalizzati
+col_matrix <- c("white", "blue", "red", "green")  # Definisci i colori desiderati
+corrplot(confusion_matrix_QDA, is.corr = FALSE, method = "color", addCoef.col = "black", col = col_matrix)
+
+# Calcola la precisione (accuracy) del modello QDA
+accuracy_QDA <- mean(predict(zqua)$class == banknote$Status) * 100
+accuracy_QDA
+
+# Estrai i valori necessari dalla matrice di confusione per QDA
+tp_qda <- confusion_matrix_QDA["genuine", "genuine"]  # True Positives
+fp_qda <- confusion_matrix_QDA["counterfeit", "genuine"]  # False Positives
+fn_qda <- confusion_matrix_QDA["genuine", "counterfeit"]  # False Negatives
+
+# Calcola precision, recall e F1-score per QDA
+precision_qda <- tp_qda / (tp_qda + fp_qda)
+recall_qda <- tp_qda / (tp_qda + fn_qda)
+f1_score_qda <- 2 * (precision_qda * recall_qda) / (precision_qda + recall_qda)
+
+# Visualizza il risultato
+f1_score_qda
+
+
+# Entrambi i modelli di Analisi Discriminante Lineare (LDA) e Quadratica (QDA) forniscono gli stessi risultati. Entrambi hanno ottenuto una precisione (accuracy) del 99.5% e un punteggio F1 del 0.9949749. Questo potrebbe indicare che le due tecniche di analisi sono in grado di modellare efficacemente i dati, o che i dati stessi sono separabili linearmente, rendendo la distinzione tra le due tecniche meno rilevante in questo contesto specifico.
+
+
+
+
+"Valutazione incrociata di LDA e QDA per la classificazione di banconote genuini e contraffatti"
+
+# Carico il dataset necessario per eseguire la Validazione incrociata
+library(caret)
+
+# Valutazione incrociata
+set.seed(123)
+lda_cv <- train(Status ~ ., data = banknote, method = "lda", trControl = trainControl(method = "cv"))
+qda_cv <- train(Status ~ ., data = banknote, method = "qda", trControl = trainControl(method = "cv"))
+print(lda_cv)
+print(qda_cv)
+
+# La valutazione incrociata utilizzando LDA e QDA mostra che entrambe le tecniche hanno ottenuto un'alta accuratezza nella classificazione delle banconote come genuini o contraffatti.
+# LDA ha prodotto un'accuratezza del 99.5% e un indice Kappa del 99% attraverso la procedura di cross-validazione a 10 fold.
+# Analogamente, QDA ha ottenuto un'accuratezza e un indice Kappa del 99.5% attraverso la stessa procedura di cross-validazione.
+# Questi risultati indicano che entrambi i modelli sono in grado di generalizzare bene su nuovi dati e che possono classificare le banconote con elevata precisione.
+# La similitudine nei risultati potrebbe essere dovuta alla natura separabile dei dati e alla capacità delle due tecniche di analisi di catturare queste differenze.
+# La procedura di cross-validazione aiuta a ridurre il rischio di overfitting e conferma la capacità di generalizzazione dei modelli.
+
+
+# Nonostante le metriche di valutazione come l'accuratezza e il kappa siano simili per i modelli LDA e QDA,
+# è importante valutare ulteriormente le loro prestazioni mediante la curva ROC.
+# Anche se i risultati sono quasi identici, la curva ROC potrebbe rivelare eventuali differenze sottili
+# nella capacità di discriminazione dei modelli su diverse soglie di probabilità.
+# Questa analisi aggiuntiva potrebbe fornire informazioni utili per la scelta del modello più adatto alle
+# esigenze specifiche dell'applicazione.
+
+
+
+
+"Confronto delle Curve ROC tra LDA e QDA per il Dataset Banknote"
+
+# Visualizzazione delle curve ROC
+
+library(pROC)
+
+# Definizione della funzione per la visualizzazione delle curve ROC e output numerico
+plot_ROC_and_output <- function(zlin, zqua, dataset) {
+  # Converti le etichette di classe in numeri interi
+  labels <- ifelse(dataset$Status == "genuine", 1, 0)
+  
+  # Calcola le curve ROC per LDA e QDA
+  roc_LDA <- roc(labels, predict(zlin)$posterior[, "genuine"])
+  roc_QDA <- roc(labels, predict(zqua)$posterior[, "genuine"])
+  
+  # Visualizza le curve ROC
+  plot(roc_LDA, col = "blue", main = "ROC Curve", legacy.axes = TRUE)
+  lines(roc_QDA, col = "red")
+  legend("bottomright", legend = c("LDA", "QDA"), col = c("blue", "red"), lty = 1)
+  
+  # Stampa i risultati numerici
+  cat("\nValutazione delle Prestazioni di LDA e QDA tramite AUC, Sensibilità, Specificità e Punto di Equilibrio\n\n")
+  
+  # Calcola l'AUC per LDA e QDA
+  auc_LDA <- auc(roc_LDA)
+  auc_QDA <- auc(roc_QDA)
+  
+  # Calcola la sensibilità e la specificità per LDA e QDA
+  coords_LDA <- coords(roc_LDA, x = "best")
+  coords_QDA <- coords(roc_QDA, x = "best")
+  
+  sensitivity_LDA <- coords_LDA$sensitivity
+  specificity_LDA <- 1 - coords_LDA$specificity
+  
+  sensitivity_QDA <- coords_QDA$sensitivity
+  specificity_QDA <- 1 - coords_QDA$specificity
+  
+  # Calcola il punto di equilibrio (Youden's J) per LDA e QDA
+  balance_LDA <- coords_LDA$thresholds
+  balance_QDA <- coords_QDA$thresholds
+  
+  # Estrai il valore di cut-off ottimale per LDA e QDA
+  cutoff_LDA <- coords_LDA$cutoff
+  cutoff_QDA <- coords_QDA$cutoff
+  
+  # Stampa i risultati
+  cat("AUC per LDA:", auc_LDA, "\n")
+  cat("Sensibilità per LDA:", sensitivity_LDA, "\n")
+  cat("Specificità per LDA:", specificity_LDA, "\n")
+  cat("Punto di equilibrio per LDA:", balance_LDA, "\n")
+  cat("Cutoff per LDA:", cutoff_LDA, "\n\n")
+  
+  cat("AUC per QDA:", auc_QDA, "\n")
+  cat("Sensibilità per QDA:", sensitivity_QDA, "\n")
+  cat("Specificità per QDA:", specificity_QDA, "\n")
+  cat("Punto di equilibrio per QDA:", balance_QDA, "\n")
+  cat("Cutoff per QDA:", cutoff_QDA, "\n")
+}
+
+# Utilizzo della funzione
+plot_ROC_and_output(zlin, zqua, banknote)
+
+# Entrambe le curve ROC hanno un AUC di 1, il che indica una perfetta separazione delle classi.
+# La sensibilità e la specificità per entrambi i modelli sono 1 e 0 rispettivamente, 
+# indicando una classificazione perfetta.
+# La curva ROC perfetta si manifesta come una linea diagonale ascendente dall'angolo in basso a sinistra 
+# fino all'angolo in alto a destra del grafico. Quando la curva ROC segue questa forma, 
+# l'AUC diventa 1, indicando la massima separazione tra le classi.
+# È un risultato ideale, ma potrebbe indicare un possibile overfitting del modello ai dati di allenamento, 
+# quindi è importante verificare le prestazioni del modello su dati non visti prima di trarre conclusioni definitive.
+
+
+
+
+"Valutazione delle Prestazioni dei Modelli LDA e QDA e Visualizzazione delle Distribuzioni dei Punteggi di Classificazione"
+
+# Calcola e visualizza altre metriche di valutazione
+library(caret)
+confusion_matrix_LDA <- confusionMatrix(predict(zlin)$class, banknote$Status)
+confusion_matrix_QDA <- confusionMatrix(predict(zqua)$class, banknote$Status)
+print(confusion_matrix_LDA)
+print(confusion_matrix_QDA)
+
+# Confusion Matrix (Matrice di Confusione)
+
+# La matrice di confusione mostra le prestazioni del modello LDA e QDA nella classificazione delle osservazioni in base alla variabile di risposta (Status).
+# Ogni cella della matrice rappresenta il conteggio di osservazioni classificate correttamente o erroneamente.
+# Nella matrice, le righe rappresentano le predizioni del modello, mentre le colonne rappresentano i veri valori osservati.
+
+# Accuracy (Accuratezza)
+
+# L'accuratezza è la proporzione di osservazioni classificate correttamente rispetto al totale delle osservazioni. È un'importante misura di valutazione delle prestazioni del modello.
+# Per entrambi i modelli LDA e QDA, l'accuratezza è molto alta (0.995), indicando che il 99.5% delle osservazioni è stato classificato correttamente.
+
+# Sensitivity (Sensibilità) e Specificity (Specificità)
+
+# La sensibilità è la proporzione di osservazioni positive (counterfeit) che sono state correttamente identificate dal modello.
+# La specificità è la proporzione di osservazioni negative (genuine) che sono state correttamente identificate dal modello.
+# Entrambe le misure sono molto alte (1.000 per la sensibilità e 0.990 per la specificità), indicando una capacità elevata dei modelli nel distinguere le classi.
+
+# Prevalence (Prevalenza) e Detection Rate (Tasso di Rilevamento)
+
+# La prevalenza è la proporzione di osservazioni nella popolazione totale che appartengono alla classe positiva (counterfeit).
+# Il tasso di rilevamento è la proporzione di osservazioni positive che sono state correttamente identificate dal modello.
+# Entrambe le misure sono pari a 0.500, indicando che il 50% delle osservazioni appartiene alla classe positiva e che il 50% delle osservazioni positive è stato correttamente classificato.
+
+# Imposta un layout personalizzato
+layout(matrix(c(1, 2), nrow = 1))
+
+# Grafico a dispersione per LDA - Banconote Genuine
+plot(predict(zlin)$posterior[banknote$Status == "genuine", "genuine"], 
+     main = "LDA Genuine Scores", xlab = "Sample", ylab = "Score", col = "blue")
+
+# Grafico a dispersione per LDA - Banconote Contraffatte
+plot(predict(zlin)$posterior[banknote$Status == "counterfeit", "genuine"], 
+     main = "LDA Counterfeit Scores", xlab = "Sample", ylab = "Score", col = "red")
+
+# Nuova finestra grafica per QDA
+layout(matrix(c(1, 2), nrow = 1))
+
+# Grafico a dispersione per QDA - Banconote Genuine
+plot(predict(zqua)$posterior[banknote$Status == "genuine", "genuine"], 
+     main = "QDA Genuine Scores", xlab = "Sample", ylab = "Score", col = "green")
+
+# Grafico a dispersione per QDA - Banconote Contraffatte
+plot(predict(zqua)$posterior[banknote$Status == "counterfeit", "genuine"], 
+     main = "QDA Counterfeit Scores", xlab = "Sample", ylab = "Score", col = "orange")
+
+# # Interpretazione dei grafici LDA:
+
+## Banconote Genuine:
+#La maggior parte dei punti blu si trova nella parte superiore del grafico, allineati parallelamente all'asse x, indicando una classificazione corretta della maggior parte delle banconote genuine.
+#Vi è solo un punto che si trova in basso e tocca l'asse x, il che indica una classificazione errata di una banconota genuina come contraffatta.
+
+## Banconote Contraffatte:
+# Tutti i pallini si concentrano sull'asse x, ad eccezione di tre punti che si trovano verso l'alto, indicando una classificazione errata di alcune banconote contraffatte come genuine.
+
+
+# Interpretazione dei grafici QDA:
+
+## Banconote Genuine:
+
+# La distribuzione dei punti è simile a quella dell'LDA, indicando una classificazione corretta della maggior parte delle banconote genuine.
+
+## Banconote Contraffatte:
+
+# La differenza principale rispetto all'LDA è che ci sono solo due punti che si estendono verso l'alto, indicando una classificazione errata di poche banconote contraffatte come genuine.
+
+# In sintesi, entrambi i modelli LDA e QDA sembrano funzionare bene nella classificazione delle banconote genuine, ma hanno difficoltà a distinguere alcune banconote contraffatte.
+
+
+
+"Cross-Validation per LDA e QDA nella Classificazione di Banconote"
+
+# Carica pacchetti necessari per la Cross Validation
+library(MLmetrics)
+library(caret)
+
+# Cross-validation per LDA
+lda_cv <- train(Status ~ ., data = banknote, method = "lda", trControl = trainControl(method = "cv", number = 10))
+print(lda_cv)
+
+# Stratified cross-validation per LDA
+lda_stratified_cv <- train(Status ~ ., data = banknote, method = "lda", trControl = trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = multiClassSummary), metric = "Accuracy")
+print(lda_stratified_cv)
+
+# Cross-validation per QDA
+qda_cv <- train(Status ~ ., data = banknote, method = "qda", trControl = trainControl(method = "cv", number = 10))
+print(qda_cv)
+
+# Stratified cross-validation per QDA
+qda_stratified_cv <- train(Status ~ ., data = banknote, method = "qda", trControl = trainControl(method = "cv", number = 10, classProbs = TRUE, summaryFunction = multiClassSummary), metric = "Accuracy")
+print(qda_stratified_cv)
+
+# Risultati della cross-validation per LDA senza stratificazione:
+# L'accuracy media ottenuta è del 99.5%, con un coefficiente Kappa di 0.99, indicando un'elevata concordanza tra le previsioni del modello e le classi reali.
+
+# Risultati della cross-validation per LDA con stratificazione:
+# L'accuracy media è del 99.5%, con un coefficiente Kappa di 0.99. Il logLoss medio è 0.02974118, e l'AUC è 1, indicando una perfetta capacità discriminante del modello.
+# La prAUC è 0.895, indicando una buona precisione nelle previsioni positive. Il F1 Score è 0.9952381, riflettendo un buon bilanciamento tra precisione e richiamo.
+# La sensitività è del 100%, e la specificità è del 99%, con un valore predittivo positivo del 99.09% e negativo del 100%. Precisione e recall sono entrambi del 100%.
+# Il tasso di rilevamento è del 50%, e l'accuracy bilanciata è del 99.5%.
+
+# Risultati della cross-validation per QDA senza stratificazione e con stratificazione:
+# I risultati sono molto simili a quelli ottenuti con LDA. Entrambi i modelli hanno ottenuto un'accuratezza del 99.5%.
+# Il valore di Kappa è 0.99, indicando un'elevata affidabilità delle previsioni.
+# Tuttavia, entrambi i modelli mostrano una specificità di 0 durante la cross-validazione, indicando una mancanza di identificazione delle banconote genuine.
+# L'AUC ROC di 1 per entrambi i modelli suggerisce una capacità discriminante perfetta senza sovrapposizioni nelle distribuzioni delle probabilità.
+
+# Conclusione:
+# LDA e QDA sono modelli promettenti per la classificazione di banconote, con elevata accuratezza e capacità discriminante.
+# Tuttavia, la mancanza di specificità potrebbe influenzare l'applicabilità pratica dei modelli, soprattutto nella distinzione accurata delle banconote genuine.
+
+
+
+
+
+
+####################### CONCLUSIONI
+
+
+# L'analisi dettagliata delle caratteristiche fisiche delle banconote genuine e contraffatte fornisce importanti informazioni nel campo della sicurezza finanziaria. Questi dati costituiscono una solida base per lo sviluppo di strategie e sistemi di rilevamento delle frodi più efficaci e affidabili. 
+# Durante questa analisi, sono state esaminate le principali differenze osservate tra le due categorie di banconote, attraverso le variabili Length, Left, Right, Bottom, Top, Diagonal.
+# Qui vengono riportati i risultati principali con l'obiettivo di trarre conclusioni che mettano in evidenza le diverse sfumature tra i due tipi di banconote prese in esame
+
+# Il dataset utilizzato comprende un totale di 200 banconote, equamente divise tra 100 banconote classificate come 'Contraffatte' e altre 100 come 'Genuine'. Questo equilibrio nella distribuzione delle categorie suggerisce una rappresentazione bilanciata di banconote genuine e contraffatte nei dati analizzati.
+
+
+
+# Esaminando le statistiche descrittive, sono emerse chiare differenze tra le due categorie:
+
+# La lunghezza media delle banconote genuine è di circa 214.97 unità, con una deviazione standard di circa 0.39 unità. Il minimo valore registrato è 213.8 e il massimo è 215.9. Il primo quartile è 214.7, la mediana è 215.0, e il terzo quartile è 215.2. Sono presenti 100 osservazioni.
+# La lunghezza media delle banconote contraffatte è di circa 214.82 unità, con una deviazione standard di circa 0.35 unità. Il minimo valore registrato è 213.9 e il massimo è 216.3. Il primo quartile è 214.6, la mediana è 214.8, e il terzo quartile è 215.0. Sono presenti 100 osservazioni.
+
+# La misura media della parte sinistra delle banconote genuine è di circa 129.94 unità, con una deviazione standard di circa 0.36 unità. Il minimo valore registrato è 129.0 e il massimo è 131.0. Il primo quartile è 129.7, la mediana è 129.9, e il terzo quartile è 130.2. Sono presenti 100 osservazioni.
+# La misura media della parte sinistra delle banconote contraffatte è di circa 130.30 unità, con una deviazione standard di circa 0.26 unità. Il minimo valore registrato è 129.6 e il massimo è 130.8. Il primo quartile è 130.1, la mediana è 130.3, e il terzo quartile è 130.5. Sono presenti 100 osservazioni.
+
+# La misura media della parte destra delle banconote genuine è di circa 129.72 unità, con una deviazione standard di circa 0.36 unità. Il minimo valore registrato è 129.0 e il massimo è 131.1. Il primo quartile è 129.4, la mediana è 129.7, e il terzo quartile è 130.0. Sono presenti 100 osservazioni.
+# La misura media della parte destra delle banconote contraffatte è di circa 130.19 unità, con una deviazione standard di circa 0.30 unità. Il minimo valore registrato è 129.3 e il massimo è 131.1. Il primo quartile è 130.0, la mediana è 130.2, e il terzo quartile è 130.4. Sono presenti 100 osservazioni.
+
+# La misura media della parte inferiore delle banconote genuine è di circa 8.31 unità, con una deviazione standard di circa 0.64 unità. Il minimo valore registrato è 7.2 e il massimo è 10.4. Il primo quartile è 7.9, la mediana è 8.25, e il terzo quartile è 8.8. Sono presenti 100 osservazioni.
+# La misura media della parte inferiore delle banconote contraffatte è di circa 10.53 unità, con una deviazione standard di circa 1.13 unità. Il minimo valore registrato è 7.4 e il massimo è 12.7. Il primo quartile è 9.9, la mediana è 10.6, e il terzo quartile è 11.4. Sono presenti 100 osservazioni.
+
+# La misura media della parte superiore delle banconote genuine è di circa 10.17 unità, con una deviazione standard di circa 0.65 unità. Il minimo valore registrato è 7.7 e il massimo è 11.7. Il primo quartile è 9.775, la mediana è 10.2, e il terzo quartile è 10.6. Sono presenti 100 osservazioni.
+# La misura media della parte superiore delle banconote contraffatte è di circa 11.13 unità, con una deviazione standard di circa 0.64 unità. Il minimo valore registrato è 9.1 e il massimo è 12.3. Il primo quartile è 10.675, la mediana è 11.1, e il terzo quartile è 11.525. Sono presenti 100 osservazioni.
+
+# La misura media della diagonale delle banconote genuine è di circa 141.52 unità, con una deviazione standard di circa 0.45 unità. Il minimo valore registrato è 139.6 e il massimo è 142.4. Il primo quartile è 141.2, la mediana è 141.5, e il terzo quartile è 141.8. Sono presenti 100 osservazioni.
+# La misura media della diagonale delle banconote contraffatte è di circa 139.45 unità, con una deviazione standard di circa 0.56 unità. Il minimo valore registrato è 137.8 e il massimo è 140.6. Il primo quartile è 139.2, la mediana è 139.5, e il terzo quartile è 139.8. Sono presenti 100 osservazioni.
+
+
+
+# Con le Analisi delle Componenti principali (PCA) sono emerse altre fondamentali differenze:
+# Ad esempio, nelle prime due componenti principali (PC1 e PC2), le banconote genuine presentano una deviazione standard leggermente più elevata sulla PC1 (1.4845 per le banconote genuine contro 1.3915 per le banconote contraffatte), indicando una maggiore variabilità o complessità nei dati genuine rispetto alle contraffatte su questa dimensione. Inoltre, la proporzione cumulativa della varianza fino a PC2 è leggermente più alta per le banconote genuine (65.01% per le banconote genuine contro il 61.69% per le banconote contraffatte).
+# Mentre nelle PC3 e PC4, la deviazione standard sulla PC3 è anche più alta per le banconote genuine (0.9827 per le banconote genuine contro 0.9941 per le banconote contraffatte), mentre la proporzione cumulativa della varianza fino a PC3 è più elevata per le banconote genuine (81.11% per le banconote genuine, rispetto al 78.16% per le banconote contraffatte). Analogamente, le banconote genuine mostrano deviazioni standard leggermente più elevate sulla PC4, sebbene la proporzione cumulativa della varianza fino a PC4 sia leggermente più alta per le banconote contraffatte.
+
+
+
+# Guardando all'analisi delle Corrispondenze (CA), sono state riportate alcune conclusioni basate sui risultati ottenuti:
+
+# Banconote Originali:
+# Il chi-quadro di indipendenza tra le variabili è 9.186134, con un p-value di 1, indicando che non c'è evidenza statistica per rifiutare l'ipotesi di indipendenza tra le variabili.
+# Gli autovalori per le dimensioni Dim.1 e Dim.2 sono significativi, con Dim.1 che spiega l'80.349% e Dim.2 che spiega il 17.371% della varianza totale.
+# Le prime due dimensioni spiegano complessivamente il 97.720% della varianza totale, evidenziando una forte concentrazione di informazioni nelle prime due dimensioni.
+
+# Banconote Contraffatte:
+# Il chi-quadro di indipendenza è 15.78461, con un p-value di 1, indicando anche in questo caso l'assenza di evidenza statistica per rifiutare l'ipotesi di indipendenza tra le variabili.
+# Gli autovalori significativi sono anch'essi limitati alle prime due dimensioni (Dim.1 e Dim.2), con Dim.1 che spiega l'88.376% e Dim.2 che spiega il 10.342% della varianza totale.
+# Le prime due dimensioni spiegano complessivamente il 98.718% della varianza totale, indicando una forte concentrazione di informazioni anche in questo caso nelle prime due dimensioni.
+
+
+
+# Proseguendo con le misture gaussiane
+# Dalle informazioni fornite, sembra che le banconote genuine mostrino una maggiore varietà nelle misure rispetto alle banconote contraffatte, insieme a una distribuzione più uniforme e coerente. Questo significa che le banconote genuine possono presentare una gamma più ampia di valori per le caratteristiche esaminate, come la lunghezza, la posizione sinistra, la posizione destra, la posizione inferiore, la posizione superiore e la diagonale, mentre mantengono una certa coerenza nei modelli di distribuzione.
+
+
+
+# Visualizzando le distribuzioni delle variabili delle banconote genuine e contraffatte
+# In sintesi, le banconote genuine mostrano una distribuzione più uniforme e consistente rispetto alle banconote contraffatte, che presentano una maggiore variabilità e dispersione nei valori delle variabili esaminate.
+
+
+
+# Attenzionando il K-MEANS
+# L'analisi mediante l'algoritmo K-Means ha evidenziato che le banconote genuine e contraffatte presentano differenze significative nella distribuzione dei cluster, consentendo di distinguere i due tipi di banconote in base alle loro caratteristiche geometriche e posizionali.
+
+
+
+# Infine, le analisi LDA e QDA
+# L'analisi discriminante lineare (LDA) e quadratica (QDA) non hanno evidenziato differenze significative tra i due tipi di banconote genuine e contraffatte, suggerendo che le caratteristiche utilizzate come variabili discriminanti non sono state in grado di separare efficacemente le due categorie. Entrambe le curve ROC hanno un AUC di 1, il che indica una perfetta separazione delle classi.
+
+
+
+# In conclusione, l'analisi dettagliata delle caratteristiche fisiche tra le banconote genuine e contraffatte ha rivelato differenze sostanziali che riflettono la qualità e la produzione delle banconote nel contesto della sicurezza finanziaria. Le banconote genuine si contraddistinguono per la loro uniformità e coerenza nelle dimensioni, mostrando valori medi più stabili e una distribuzione meno dispersa rispetto alle banconote contraffatte. 
+# Questo suggerisce che le banconote genuine siano prodotte con standardizzazione e controllo più rigorosi, garantendo una maggiore precisione nelle specifiche fisiche.
+# D'altra parte, le banconote contraffatte mostrano una maggiore variabilità e dispersione nei valori osservati, indicando una produzione meno controllata e di qualità inferiore. Le discrepanze nelle misure evidenziano una maggiore inconsistenza e imprecisione nei dettagli fisici delle banconote contraffatte.
+
+# Questi risultati forniscono un fondamento critico per lo sviluppo di sistemi di rilevamento delle frodi più sofisticati e affidabili, permettendo alle istituzioni finanziarie di proteggere in modo più efficace la fiducia dei consumatori e la sicurezza del sistema monetario. Investire in tecnologie e protocolli di autenticazione avanzati può contribuire significativamente a mitigare il rischio di frodi e garantire la sicurezza delle transazioni finanziarie.
