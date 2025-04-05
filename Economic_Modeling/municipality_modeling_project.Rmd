@@ -1,0 +1,2134 @@
+---
+title: "Verifica Spopolamento"
+author: "Guarino Renata"
+date: "2024-06-01"
+output: word_document
+---
+
+# Analisi Predittiva dello Spopolamento Urbano: Un Confronto tra Milano e Palermo Utilizzando Modelli di Machine Learning
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+library(jpeg) # Per lavorare con immagini JPEG.
+library(png) # Per lavorare con immagini PNG.
+
+# chunk di codice per per incorporare le immagini nel documento R Markdown
+
+#Città metropolitana di Milano
+knitr::include_graphics("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Prov.Milano.jpg")
+
+# Città metropolitana di Palermo
+knitr::include_graphics("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Prov.Palermo.png")
+
+
+# Carica immagine Milano
+milano <- readJPEG("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Prov.Milano.jpg")
+# Fonte immagine: Wikipedia
+
+# Carica immagine Palermo
+palermo <- readPNG("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Prov.Palermo.png")
+# Fonte immagine: Wikipedia
+
+
+# Introduzione
+
+# Negli ultimi anni, il fenomeno dello spopolamento delle aree urbane e rurali ha assunto una crescente rilevanza economica e sociale. 
+# La riduzione della popolazione influisce negativamente sull'economia locale, sui servizi pubblici, sulle infrastrutture e sulla qualità della vita degli abitanti.
+
+# Questo studio si concentra sulle province di Milano e Palermo, due aree con caratteristiche socio-economiche differenti, per comprendere e predire i fattori 
+# che contribuiscono allo spopolamento e fornire indicazioni utili ai policy maker per contrastare tale fenomeno.
+
+# Il lavoro mira a confrontare l'efficacia di diversi modelli di machine learning nel predire lo spopolamento e valutare quale modello offra le migliori prestazioni predittive.
+
+# Nello specifico, sono stati utilizzati i seguenti modelli di machine learning:
+
+# 1. Gradient Boosting Machine (GBM)
+# 2. Random Forest (RF)
+# 3. Generalized Linear Model with Elastic Net Regularization (GLMNET)
+# 4. Neural Network (NNET)
+# 5. Generalized Linear Model (GLM)
+
+# Le variabili selezionate includono 98 indicatori suddivisi nelle seguenti categorie:
+
+# - Demografia e Popolazione;
+# - Dinamiche di convivenza e struttura familiare;
+# - Abitazioni e Residenza;
+# - Istruzione;
+# - Occupazione/Disoccupazione;
+# - Mobilità;
+# - Vulnerabilità Sociale ed Economica;
+
+# Sono, inoltre, state effettuate le seguenti analisi e visualizzazioni:
+
+# - Partial Dependence Plots: per visualizzare l'effetto delle singole variabili predittive sulla risposta del modello.
+# - Importanza delle Variabili: per identificare le variabili più influenti nel determinare lo spopolamento.
+# - ROC Curves: per valutare la capacità predittiva dei modelli attraverso la curva ROC e l'area sotto la curva (AUC).
+# - Reti neurali, Cross-Validation-Plot e Coefficient Plot per i modelli NNET e GLMNet.
+
+# Le prestazioni dei modelli saranno valutate non solo in termini di accuratezza, ma anche in base alla loro capacità di identificare correttamente i fattori chiave che influenzano lo spopolamento.
+
+# Le conclusioni tratte da questo studio aiuteranno i policy maker a prendere decisioni informate per implementare politiche volte a contrastare lo spopolamento e promuovere 
+# lo sviluppo sostenibile delle aree a rischio.
+
+
+
+######################### PRE-PROCESSING ###################################
+
+# Carica pacchetti necessari
+library(readxl) # Per leggere file Excel.
+library(dplyr) # Per manipolare e analizzare dati in modo efficace
+library(caret) # Per eseguire analisi predittive, addestrare modelli e valutarne le prestazioni
+library(jpeg) # Per lavorare con immagini JPEG.
+library(png) # Per lavorare con immagini PNG.
+
+# Carica l'immagine JPEG
+milano <- readJPEG("Prov.Milano.jpg")
+
+# Carica l'immagine PNG
+palermo <- readPNG("Prov.Palermo.png")
+
+# Carica il file Excel "Popolazione" e visualizza le prime righe
+Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = NULL)
+head(Popolazione)
+
+# Carica il file Excel "Legenda" e visualizza le prime righe
+Legenda <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Legenda_codici_e_simboli_indicatori_ai_confini_2011.xlsx", sheet = NULL)
+head(Legenda)
+
+# Carica il file CSV "Indicatori" e visualizza le prime righe
+Indicatori <- read.csv("D:/Disco D/Master AI e DataScience/Verifiche/Resce/Indicatori_2011_8milaC_Convert.csv", sep = ";")
+head(Indicatori)
+
+
+# Verifico la presenza di valori mancanti sul dataset "Popolazione" per ogni singola scheda a partire dalla seconda
+
+# Carica il file Excel "Popolazione" e visualizza le prime righe
+Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = 2)
+print(paste("Valori mancanti nella seconda scheda:", sum(is.na(Popolazione))))
+
+# Ripeti il processo per la terza, quarta e quinta scheda
+Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = 3)
+print(paste("Valori mancanti nella terza scheda:", sum(is.na(Popolazione))))
+
+Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = 4)
+print(paste("Valori mancanti nella quarta scheda:", sum(is.na(Popolazione))))
+
+Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = 5)
+print(paste("Valori mancanti nella quinta scheda:", sum(is.na(Popolazione))))
+
+
+
+# Elimino i valori mancanti e verifico l'efficacia della rimozione
+
+# Rimuovi i valori mancanti da ciascuna scheda di Popolazione
+for (i in 2:5) {
+  Popolazione <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = i)
+  Popolazione_clean <- na.omit(Popolazione)
+  print(paste("Valori mancanti nella scheda", i, "dopo la rimozione:", sum(is.na(Popolazione_clean))))
+}
+
+
+
+# Verifico la presenza di valori mancanti sul dataset "Indicatori"
+
+# Controlla i valori mancanti nel dataset "Indicatori"
+missing_values_indicatori <- colSums(is.na(Indicatori))
+
+# Calcola il totale dei valori mancanti nel dataset "Indicatori"
+totale_valori_mancanti_indicatori <- sum(missing_values_indicatori)
+
+# Stampa il totale dei valori mancanti nel dataset "Indicatori"
+print(paste("Totale valori mancanti nel dataset 'Indicatori':", totale_valori_mancanti_indicatori))
+
+# Controlla i valori mancanti per ogni indicatore nel dataset "Indicatori"
+valori_mancanti_per_indicatore <- colSums(is.na(Indicatori))
+
+# Stampa i valori mancanti per ogni indicatore
+print(valori_mancanti_per_indicatore)
+
+# Conta i valori mancanti prima dell'imputazione
+valori_mancanti_prima <- sum(is.na(Indicatori))
+
+# La colonna "V3 - Incidenza di popolazione in comuni "molto vulnerabili" viene rimossa
+# per totale assenza di valori
+
+# Rimuovi la colonna "V3" dal dataset Indicatori
+Indicatori <- subset(Indicatori, select = -V3)
+
+# Stampa i nomi delle colonne dopo la rimozione di V3
+print(colnames(Indicatori))
+
+# Visualizza i valori unici nella colonna V3
+unique_values_V3 <- unique(Indicatori$V3)
+print(unique_values_V3)
+
+
+
+# Per i restanti valori mancanti decido di calcolare la mediana 
+
+# Sostituisci i valori mancanti con la mediana per ciascuna colonna
+for (colonna in names(Indicatori)) {
+  Indicatori[[colonna]][is.na(Indicatori[[colonna]])] <- median(Indicatori[[colonna]], na.rm = TRUE)
+}
+
+# Conta i valori mancanti dopo l'imputazione
+valori_mancanti_dopo <- sum(is.na(Indicatori))
+
+# Stampa il numero di valori mancanti prima e dopo l'imputazione
+print(paste("Valori mancanti prima dell'imputazione:", valori_mancanti_prima))
+print(paste("Valori mancanti dopo l'imputazione:", valori_mancanti_dopo))
+
+
+
+# Rinomino la seconda scheda del dataset Popolazione per riuscire meglio a selezionare le colonne
+
+# Carica i dati dalla seconda scheda del file Excel e assegnali alla variabile 'Popolazione_seconda_scheda'
+Popolazione_seconda_scheda <- read_excel("D:/Disco D/Master AI e DataScience/Verifiche/Resce/1a-Popolazione-valori-assoluti (1).xlsx", sheet = 2)
+
+# Visualizza le prime righe dei dati caricati
+head(Popolazione_seconda_scheda)
+
+# Rinomina le colonne della seconda scheda di Popolazione
+Popolazione_seconda_scheda <- Popolazione_seconda_scheda %>%
+  rename(
+    Ripartizione = "Ripartizione",
+    Codice_regione = "Codice regione",
+    Denominazione_regione = "Denominazione regione",
+    Provincia = "Provincia",
+    Capoluogo = "Capoluogo",
+    Denominazione_comune = "Denominazione comune",
+    Codice_comune_Istat = "Codice comune Istat"
+  )
+
+
+
+# Come già accennato nell'introduzione, per prevedere lo spopolamento, si farà riferimento all'intera provincia di Milano per il Nord Italia, comprendente un totale di 129 comuni (al netto dei comuni di Zelo Zurrigone e Vermezzo), 
+# e all'intera provincia di Palermo per il Sud Italia, che conta un totale di 80 comuni.
+
+
+# Per la provincia di Milano decido di filtrare le colonne Denominazione Comune, Codice Istat e Totale
+# prendendo come riferimento il dataset Popolazione
+
+# Filtra il dataframe per ottenere solo le colonne sesta, settima e trentunesima, mantenendo il nome per le prime due
+milano_totale <- Popolazione_seconda_scheda %>%
+  filter(Denominazione_comune == "Milano" | (Denominazione_comune != "Milano" & Codice_comune_Istat >= "015002" & Codice_comune_Istat <= "015247")) %>%
+  select(Denominazione_comune, Codice_comune_Istat, 31)
+
+# Visualizza l'intero dataframe risultante
+print(milano_totale)
+
+# Conta il numero di righe per Milano
+print(paste("Numero di righe per Milano:", nrow(milano_totale)))
+
+
+
+# Il medesimo lavoro lo svolgo per la provincia di Palermo
+
+# Filtra il dataframe per ottenere solo le colonne sesta, settima e trentunesima, mantenendo il nome per le prime due per Palermo
+palermo_totale <- Popolazione_seconda_scheda %>%
+  filter(Denominazione_comune == "Palermo" | (Denominazione_comune != "Palermo" & Codice_comune_Istat >= "082001" & Codice_comune_Istat <= "082080")) %>%
+  select(Denominazione_comune, Codice_comune_Istat, 31)
+
+# Visualizza l'intero dataframe risultante
+print(palermo_totale)
+
+# Conta il numero di righe per Palermo
+print(paste("Numero di righe per Palermo:", nrow(palermo_totale)))
+
+
+
+# Sia per Milano che per Palermo seleziono i 98 Indicatori che verranno utilizzati durante lo studio per predire lo spopolamento
+# prendendo come riferimento il dataset Indicatori
+
+
+### Milano
+
+# Seleziona la variabile P1 per Milano
+milano_P1 <- Indicatori %>%
+  filter(Cod_comune >= 15002 & Cod_comune <= 15247) %>%
+  select(Cod_comune, P1)
+
+# Visualizza i dati filtrati
+print(milano_P1)
+
+# Conta il numero di righe per Milano
+print(paste("Numero di righe per Milano:", nrow(milano_P1)))
+
+
+
+### Palermo
+
+# Seleziona la variabile P1 per Palermo
+palermo_P1 <- Indicatori %>%
+  filter(Cod_comune >= 82001 & Cod_comune <= 82080) %>%
+  select(Cod_comune, P1)
+
+# Visualizza i dati filtrati
+print(palermo_P1)
+
+# Conta il numero di righe per Palermo
+print(paste("Numero di righe per Palermo:", nrow(palermo_P1)))
+
+
+
+# Per evitare discrepanze numeriche tra i due dataset "Indicatori e "Popolazione" ,
+# decido di rimuovere i due comuni milanesi "Zelo Surrigone" e "Vermezzo" dal primo dataset
+
+# Rimuovi i comuni aggiunti al secondo gruppo dal dataset Indicatori
+comuni_da_rimuovere <- c("Zelo Surrigone", "Vermezzo")
+Indicatori <- Indicatori %>% filter(!Denominazione.del.territorio %in% comuni_da_rimuovere)
+
+# Verifica se i comuni sono stati rimossi
+presente_Zelo <- "Zelo Surrigone" %in% Indicatori$Denominazione.del.territorio
+presente_Vermezzo <- "Vermezzo" %in% Indicatori$Denominazione.del.territorio
+
+cat("Zelo Surrigone presente nel dataset dopo la rimozione:", !presente_Zelo, "\n")
+cat("Vermezzo presente nel dataset dopo la rimozione:", !presente_Vermezzo, "\n")
+
+# Filtra i dati solo per la provincia di Milano dopo la rimozione dei comuni
+milano_dopo_rimozione <- Indicatori %>%
+  filter(Cod_comune >= 15002 & Cod_comune <= 15247)
+
+# Verifica il numero di righe nel dataset dopo la rimozione dei comuni per Milano
+numero_righe_milano_dopo_rimozione <- nrow(milano_dopo_rimozione)
+cat("Numero di righe per Milano nel dataset Indicatori dopo la rimozione:", numero_righe_milano_dopo_rimozione, "\n")
+
+
+
+# Calcolo la differenza tra la popolazione residente nel 2011 e la popolazione totale nel 2021 per entrambe le province.
+# Successivamente, creo e aggiungo una colonna chiamata "Spopolato", utilizzando una variabile dummy per indicare l'andamento dello spopolamento.
+# Assegno il valore 1 ai Comuni che si sono spopolati e il valore 0 ai Comuni che non si sono spopolati.
+
+
+# Milano
+
+# Rinomina la colonna "...31" in "Totale" e seleziona i dati per Milano
+milano_totale <- Popolazione_seconda_scheda %>%
+  filter(Denominazione_comune == "Milano" | (Denominazione_comune != "Milano" & Codice_comune_Istat >= "015002" & Codice_comune_Istat <= "015247")) %>%
+  select(Denominazione_comune, Codice_comune_Istat, Totale = `...31`)
+
+# Seleziona i dati per Milano e la variabile P1
+milano_P1 <- Indicatori %>%
+  filter(Cod_comune >= 15002 & Cod_comune <= 15247) %>%
+  select(Cod_comune, P1)
+
+# Calcola la differenza per Milano
+differenza_milano <- milano_P1$P1 - as.numeric(milano_totale$Totale)
+
+# Aggiungi la colonna "Denominazione_comune" per la visualizzazione
+milano_totale <- mutate(milano_totale, Denominazione_del_comune = Denominazione_comune)
+
+# Aggiungi la colonna dummy per indicare se il comune si è spopolato o meno
+milano_totale <- mutate(milano_totale, Spopolato = ifelse(differenza_milano < 0, 1, 0))
+
+# Visualizza il risultato della differenza per Milano con la colonna "Denominazione_comune" e "Spopolato" aggiunte
+print(data.frame(Denominazione_del_comune = milano_totale$Denominazione_del_comune, Differenza = differenza_milano, Spopolato = milano_totale$Spopolato))
+
+# Filtra il dataframe per ottenere solo i valori 1 nella variabile "Spopolato"
+milano_1 <- milano_totale %>%
+  filter(Spopolato == 1)
+
+# Stampa il nuovo set "milano_1"
+print(milano_1)
+
+
+
+# Palermo
+
+# Rinomina la colonna "...31" in "Totale" e seleziona i dati per Palermo
+palermo_totale <- Popolazione_seconda_scheda %>%
+  filter(Denominazione_comune == "Palermo" | (Denominazione_comune != "Palermo" & Codice_comune_Istat >= "082001" & Codice_comune_Istat <= "082080")) %>%
+  select(Denominazione_comune, Codice_comune_Istat, Totale = `...31`)
+
+# Seleziona i dati per Palermo e la variabile P1
+palermo_P1 <- Indicatori %>%
+  filter(Cod_comune >= 82001 & Cod_comune <= 82080) %>%
+  select(Cod_comune, P1)
+
+# Calcola la differenza per Palermo
+differenza_palermo <- palermo_P1$P1 - as.numeric(palermo_totale$Totale)
+
+# Aggiungi la colonna "Denominazione_comune" per la visualizzazione
+palermo_totale <- mutate(palermo_totale, Denominazione_del_comune = Denominazione_comune)
+
+# Aggiungi la colonna dummy per indicare se il comune si è spopolato o meno
+palermo_totale <- mutate(palermo_totale, Spopolato = ifelse(differenza_palermo < 0, 1, 0))
+
+# Visualizza il risultato della differenza per Palermo con la colonna "Denominazione_comune" e "Spopolato" aggiunte
+print(data.frame(Denominazione_del_comune = palermo_totale$Denominazione_del_comune, Differenza = differenza_palermo, Spopolato = palermo_totale$Spopolato))
+
+# Filtra il dataframe per ottenere solo i valori 1 nella variabile "Spopolato"
+palermo_1 <- palermo_totale %>%
+  filter(Spopolato == 1)
+
+# Stampa il nuovo set "palermo_1"
+print(palermo_1)
+
+
+
+############################ PROCESSING MILANO ###########################
+
+# Carica i pacchetti necessari
+library(dplyr)       # Per manipolare e analizzare dati in modo efficace.
+library(caret)       # Per eseguire analisi predittive, addestrare modelli e valutarne le prestazioni.
+library(purrr)       # Per operazioni di programmazione funzionale.
+library(pROC)        # Per la creazione di curve ROC e calcolo delle relative statistiche.
+library(PRROC)       # Per la creazione di curve ROC parziali.
+library(gbm)         # Per l'addestramento di modelli di Gradient Boosting Machine.
+library(tree)        # Per l'addestramento di modelli di alberi decisionali.
+library(randomForest) # Per l'addestramento di modelli di Random Forest.
+library(glmnet)      # Per l'addestramento di modelli di regressione lineare con regolarizzazione Elastic Net.
+library(pdp)         # Per la creazione di partial dependence plots.
+library(ggplot2)     # Per la creazione di grafici avanzati.
+library(neuralnet)   # Per l'addestramento di reti neurali.
+library(NeuralNetTools) # Per la visualizzazione di reti neurali.
+library(ggplot2) # Per creare grafici eleganti e intuitivi.
+
+
+# Creo una variabile chiamata "spopolato_milano" estraendo la colonna "Spopolato" dal dataframe "milano_totale". 
+# Trasformo questa variabile in un fattore con i livelli "No" e "Yes". 
+# Aggiungo quindi questa variabile al dataframe delle variabili indipendenti, 
+# selezionando i comuni compresi tra i codici 15002 e 15247 da "milano_dopo_rimozione".
+
+# Crea spopolato_milano dalla colonna Spopolato di milano_totale
+spopolato_milano <- milano_totale$Spopolato
+
+# Trasforma spopolato_milano in factor con livelli "No" e "Yes"
+spopolato_milano <- factor(spopolato_milano, levels = c(0, 1), labels = c("No", "Yes"))
+
+# Aggiungi la variabile di risposta al dataframe con le variabili indipendenti
+data_milano <- milano_dopo_rimozione %>%
+  filter(Cod_comune >= 15002 & Cod_comune <= 15247) %>%
+  select(P1:V9) %>%
+  mutate(spopolato_milano = spopolato_milano)
+
+
+# Divido i dati relativi a Milano in due set: uno per l'addestramento e uno per il test.
+# Utilizzo il set.seed(123) per garantire la riproducibilità dei risultati.
+# Seleziono casualmente 100 righe per l'addestramento utilizzando il campionamento con sostituzione.
+# Calcolo le metriche di valutazione del modello per Palermo, incluso l'accuracy, la sensibilità, la specificità, l'F1 score e la matrice di confusione.
+# Calcolo l'importanza delle variabili utilizzando la funzione varImp() del pacchetto caret.
+# Ordino l'importanza delle variabili in ordine decrescente e seleziono le prime N variabili.
+# Definisco anche i controlli per il modello di addestramento di Palermo utilizzando la cross-validation con 5 fold.
+
+
+# Suddividi i dati in dati di addestramento e di test
+set.seed(123)  # Impostazione del seed per riproducibilità
+num_rows_training <- min(100, nrow(data_milano))  # Numero di righe per l'addestramento, limitato al minimo tra 100 e il numero totale di righe nel dataset
+training_index <- sample(1:nrow(data_milano), num_rows_training, replace = FALSE)  # Selezione casuale delle righe per l'addestramento, con la possibilità di sostituzione
+training <- data_milano[training_index, ]
+testing <- data_milano[-training_index, ]
+
+
+# Definisci le metriche da calcolare
+compute_metrics <- function(model, test_data) {
+  # Calcola e stampa l'accuratezza (accuracy) del modello
+  accuracy <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_milano)$overall["Accuracy"]
+  print(paste("Accuratezza (Accuracy):", accuracy))
+  
+  # Calcola e stampa la sensibilità (sensitivity) del modello
+  sensitivity <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_milano)$byClass["Sensitivity"]
+  print(paste("Sensibilità (Sensitivity):", sensitivity))
+  
+  # Calcola e stampa la specificità (specificity) del modello
+  specificity <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_milano)$byClass["Specificity"]
+  print(paste("Specificità (Specificity):", specificity))
+  
+  # Calcola e stampa l'F1 score del modello
+  f1_score <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_milano)$byClass["F1"]
+  print(paste("F1 Score:", f1_score))
+  
+  # Calcola e stampa la matrice di confusione
+  conf_matrix <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_milano)
+  print("Matrice di Confusione:")
+  print(conf_matrix$table)
+  
+  # Ottieni e stampa la lista delle N variabili più importanti
+  N <- 10  # Numero di variabili più importanti da visualizzare
+  importance <- varImp(model)$importance
+  ordered_importance <- importance[order(apply(importance, 1, max), decreasing = TRUE), , drop = FALSE]
+  print(head(ordered_importance, N))
+}
+
+# Definisci l'oggetto trainControl per la validazione incrociata
+ctrl <- trainControl(
+  method = "cv",               # Metodo di cross-validazione
+  number = 5,                  # Numero di folds nella cross-validation
+  verboseIter = TRUE,          # Visualizza informazioni sull'iterazione
+  classProbs = TRUE,           # Calcola le probabilità delle classi
+  summaryFunction = twoClassSummary  # Funzione di sintesi per il calcolo delle metriche di valutazione del modello
+)
+
+
+# Gradient Boosting Machine (GBM) Milano
+
+# Addestra il modello GBM per i dati di Milano utilizzando la cross-validation
+milano_GBM <- train(spopolato_milano ~ .,
+                    data = training,  # Utilizza il set di addestramento
+                    method = "gbm",
+                    verbose = TRUE,
+                    metric = "ROC",
+                    trControl = ctrl)
+
+# Calcola e stampa le metriche del modello GBM
+print("Risultati modello GBM:")
+compute_metrics(milano_GBM, testing)
+
+# Intepretazione dei risultati del Modello GBM per Milano:
+
+# L'accuratezza del modello è del 79.31%, indicando che circa il 79.31% delle predizioni effettuate dal modello è corretto.
+# Questo suggerisce che il modello ha una buona capacità di classificare correttamente gli esempi nel set di dati di test.
+
+# La sensibilità del modello è del 40%, il che indica che il modello è in grado di individuare correttamente il 40% dei casi positivi presenti nel set di dati di test.
+# Questo potrebbe indicare che il modello ha difficoltà nella rilevazione dei casi positivi, il che potrebbe richiedere un'ottimizzazione ulteriore.
+
+# La specificità del modello è del 87.5%, indicando che il modello è in grado di individuare correttamente l'87.5% dei casi negativi presenti nel set di dati di test.
+# Questo suggerisce che il modello è efficace nel rilevare i casi negativi veri.
+
+# Il F1 Score del modello è del 40%, che indica un buon equilibrio tra precisione e recall.
+# Questo punteggio tiene conto sia della precisione che della sensibilità del modello ed è utile per valutare le prestazioni complessive, specialmente in situazioni di sbilanciamento delle classi.
+
+# La matrice di confusione mostra che su 29 casi totali, il modello ha previsto correttamente 2 casi negativi e 21 casi positivi.
+# Tuttavia, ha commesso errori su 3 casi negativi e 3 casi positivi, suggerendo che il modello potrebbe beneficiare di un'ottimizzazione ulteriore per ridurre gli errori.
+
+# Le variabili più importanti identificate dal modello GBM per la previsione del fenomeno di spopolamento a Milano sono:
+
+# Le variabili più importanti identificate dal modello sono:
+# - F4 (Incidenza di giovani che vivono da soli): 100.00%
+# Questo indicatore rappresenta la percentuale di giovani che vivono da soli rispetto alla popolazione totale, suggerendo una tendenza demografica che potrebbe influenzare la domanda abitativa e i modelli di convivenza.
+
+# - A15 (Mobilità residenziale): 73.92%
+# Questo indicatore rappresenta il livello di mobilità della popolazione, con possibili implicazioni sulla dinamica demografica e sulle preferenze abitative.
+
+# - P1 (Popolazione residente): 41.87%
+# Questo indicatore rappresenta la dimensione della popolazione residente, fondamentale per comprendere l'entità e la portata dei fenomeni demografici e sociali.
+
+# - L20 (Incidenza dell'occupazione in professioni artigiane, operaie o agricole): 40.72%
+# Questo indicatore rappresenta la percentuale di occupati in professioni artigiane, operaie o agricole rispetto alla popolazione totale, con possibili implicazioni sull'economia locale e sullo sviluppo delle comunità.
+
+# - P14 (Incidenza dei separati legalmente e dei divorziati): 39.30%
+# Questo indicatore rappresenta la percentuale di persone separate legalmente o divorziate rispetto alla popolazione totale, con possibili implicazioni sui modelli familiari e sulla domanda abitativa.
+
+# - L2 (Partecipazione al mercato del lavoro femminile): 30.93%
+# Questo indicatore rappresenta la percentuale di donne partecipanti al mercato del lavoro rispetto alla popolazione femminile in età lavorativa, con possibili implicazioni sull'economia locale e sui modelli familiari.
+
+# - F6 (Incidenza di coppie giovani senza figli): 29.42%
+# Questo indicatore rappresenta la percentuale di coppie giovani senza figli rispetto alla popolazione totale, con possibili implicazioni sull'offerta di alloggi e sull'organizzazione delle famiglie.
+
+# - L9 (Tasso di disoccupazione giovanile): 26.40%
+# Questo indicatore rappresenta il tasso di disoccupazione tra i giovani, con possibili implicazioni sull'occupazione e sul benessere economico delle nuove generazioni.
+
+# - P5 (Incidenza superficie centri e nuclei): 25.52%
+# Questo indicatore rappresenta la percentuale di superficie occupata da centri e nuclei abitati rispetto alla superficie totale, con possibili implicazioni sull'urbanizzazione e sulla densità abitativa.
+
+# - I8 (Livello di istruzione dei giovani 15-19 anni): 23.73%
+# Questo indicatore rappresenta il livello di istruzione dei giovani tra i 15 e i 19 anni, con possibili implicazioni sulle opportunità educative e sulle prospettive di crescita economica e sociale.
+
+
+
+# Random Forest (RF) MILANO
+
+# Addestra il modello RF per i dati di Milano utilizzando la cross-validation
+RF_fit <- train(spopolato_milano ~ .,
+                data = training,  # Utilizza il set di addestramento
+                method = "rf",
+                verbose = FALSE,
+                metric = "ROC",
+                trControl = ctrl)
+
+# Calcola e stampa le metriche del modello RF
+print("Risultati modello RF:")
+compute_metrics(RF_fit, testing)
+
+# Interpretazione dei risultati del modello Random Forest per Milano:
+
+# Accuratezza del modello:
+# L'accuratezza del modello è del 93.10%, indicando che circa il 93.10% delle predizioni effettuate dal modello è corretto. Questo suggerisce che il modello ha un'ottima capacità di classificare correttamente gli esempi nel set di dati di test.
+
+# Sensibilità del modello:
+# La sensibilità del modello è del 60%, indicando che il modello è in grado di individuare correttamente il 60% dei casi positivi presenti nel set di dati di test. Questo suggerisce che il modello ha qualche difficoltà nella rilevazione dei casi positivi e potrebbe richiedere un'ottimizzazione ulteriore.
+
+# Specificità del modello:
+# La specificità del modello è del 100%, indicando che il modello è in grado di individuare correttamente tutti i casi negativi presenti nel set di dati di test. Questo suggerisce che il modello è estremamente efficace nel rilevare i casi negativi veri.
+
+# F1 Score del modello:
+# Il F1 Score del modello è del 75%, che indica un buon equilibrio tra precisione e recall. Questo punteggio tiene conto sia della precisione che della sensibilità del modello ed è utile per valutare le prestazioni complessive, specialmente in situazioni di sbilanciamento delle classi.
+
+# Matrice di Confusione:
+# La matrice di confusione mostra che su 29 casi totali, il modello ha previsto correttamente 3 casi negativi e 24 casi positivi. Tuttavia, ha commesso errori su 2 casi negativi (falsi positivi), ma non ha commesso errori sui casi positivi (falsi negativi). Questo suggerisce che il modello potrebbe beneficiare di un'ottimizzazione ulteriore per ridurre i falsi positivi.
+
+
+# Le variabili più importanti identificate dal modello RF per la previsione del fenomeno di spopolamento a Milano sono:
+
+# - F4 (Incidenza di giovani che vivono da soli): 100.00%
+# Questo indicatore rappresenta la percentuale di giovani che vivono da soli rispetto alla popolazione totale, suggerendo una possibile tendenza demografica verso una maggiore indipendenza abitativa tra i giovani.
+
+# - M8 (Mobilità breve): 82.14%
+# Questo indicatore rappresenta il livello di mobilità breve della popolazione, suggerendo una possibile dinamica di spostamenti interni che potrebbe influenzare la stabilità demografica delle aree considerate.
+
+# - F9 (Incidenza di famiglie monogenitoriali anziane): 80.16%
+# Questo indicatore rappresenta la percentuale di famiglie monogenitoriali con un capofamiglia anziano, suggerendo una possibile concentrazione di nuclei familiari con particolari esigenze abitative e di assistenza.
+
+# - S2 (Incidenza di minori stranieri): 78.55%
+# Questo indicatore rappresenta la percentuale di minori stranieri rispetto alla popolazione totale, suggerendo una possibile presenza significativa di comunità migranti che potrebbe influenzare la dinamica demografica e socio-culturale delle aree considerate.
+
+# - L17 (Incidenza dell'occupazione nel settore terziario extracommercio): 69.58%
+# Questo indicatore rappresenta la percentuale di occupazione nel settore terziario extracommercio rispetto alla popolazione totale, suggerendo una possibile concentrazione di attività lavorative non strettamente legate al commercio che potrebbe influenzare la dinamica economica delle aree considerate.
+
+# - L11 (Tasso di occupazione femminile): 67.54%
+# Questo indicatore rappresenta il tasso di occupazione femminile rispetto alla popolazione femminile in età lavorativa, suggerendo una possibile influenza delle donne sul mercato del lavoro e sulla dinamica occupazionale delle aree considerate.
+
+# - L2 (Partecipazione al mercato del lavoro femminile): 67.40%
+# Questo indicatore rappresenta la percentuale di partecipazione delle donne al mercato del lavoro rispetto alla popolazione femminile in età lavorativa, suggerendo una possibile incidenza delle donne sull'attività economica delle aree considerate.
+
+# - A15 (Mobilità residenziale): 64.31%
+# Questo indicatore rappresenta il livello di mobilità residenziale della popolazione, suggerendo una possibile tendenza alla ricerca di nuove soluzioni abitative che potrebbe influenzare la distribuzione demografica delle aree considerate.
+
+# - M6 (Mobilità pubblica (uso mezzo pubblico)): 60.80%
+# Questo indicatore rappresenta il livello di utilizzo dei mezzi pubblici per la mobilità della popolazione, suggerendo una possibile infrastruttura di trasporto pubblico ben sviluppata che potrebbe influenzare i modelli di spostamento e la distribuzione spaziale delle attività umane.
+
+# - L20 (Incidenza dell'occupazione in professioni artigiane, operaie o agricole): 59.08%
+# Questo indicatore rappresenta la percentuale di occupazione nelle professioni artigiane, operaie o agricole rispetto alla popolazione totale, suggerendo una possibile concentrazione di attività lavorative tradizionali che potrebbero influenzare la struttura economica e occupazionale delle aree considerate.
+
+
+# Generalized Linear Model with Elastic Net Regularization (GLMNET) MILANO
+
+# Addestra il modello GLMNET per i dati di Milano utilizzando la cross-validation
+Lasso_fit <- train(spopolato_milano ~ .,
+                   data = training,  # Utilizza il set di addestramento
+                   method = "glmnet",
+                   verbose = FALSE,
+                   metric = "ROC",
+                   trControl = ctrl)
+
+# Calcola e stampa le metriche del modello GLMNET
+print("Risultati modello GLMNET:")
+compute_metrics(Lasso_fit, testing)
+
+# Intepretazione dei risultati del Modello GLMNET per Milano
+
+# Accuratezza del modello:
+# L'accuratezza del modello è del 75.86%, indicando che circa il 75.86% delle predizioni effettuate dal modello è corretto. Questo suggerisce che il modello ha una buona capacità di classificare correttamente gli esempi nel set di dati di test.
+
+# Sensibilità del modello:
+# La sensibilità del modello è del 60%, indicando che il modello è in grado di individuare correttamente il 60% dei casi positivi presenti nel set di dati di test. Questo suggerisce che il modello ha qualche difficoltà nella rilevazione dei casi positivi e potrebbe richiedere un'ottimizzazione ulteriore.
+
+# Specificità del modello:
+# La specificità del modello è del 79.17%, indicando che il modello è in grado di individuare correttamente circa il 79.17% dei casi negativi presenti nel set di dati di test. Questo suggerisce che il modello è efficace nel rilevare i casi negativi veri, ma potrebbe migliorare nella rilevazione dei casi positivi.
+
+# F1 Score del modello:
+# Il F1 Score del modello è del 46.15%, che indica un equilibrio moderato tra precisione e recall. Questo punteggio tiene conto sia della precisione che della sensibilità del modello ed è utile per valutare le prestazioni complessive, specialmente in situazioni di sbilanciamento delle classi.
+
+# Matrice di Confusione:
+# La matrice di confusione mostra che su 29 casi totali, il modello ha previsto correttamente 3 casi negativi e 19 casi positivi. Tuttavia, ha commesso errori su 5 casi negativi (falsi positivi), ma non ha commesso errori sui casi positivi (falsi negativi). Questo suggerisce che il modello potrebbe beneficiare di un'ottimizzazione ulteriore per ridurre i falsi positivi.
+
+
+# Le variabili più importanti identificate dal modello GLMNET per la previsione del fenomeno di spopolamento a Milano sono:
+
+# Incidenza di alloggi impropri (V4): 100%
+# Questo indica la percentuale di alloggi considerati impropri rispetto al totale degli alloggi nella zona studiata. Alloggi impropri potrebbero indicare condizioni di vita precarie o inadeguate, influenzando negativamente l'attrattività dell'area e contribuendo allo spopolamento.
+
+# Incidenza delle famiglie numerose (V5): 92%
+# Questo indica la percentuale di famiglie numerose rispetto al totale delle famiglie nell'area considerata. La presenza di un alto numero di famiglie numerose potrebbe indicare una maggiore domanda di spazio abitativo, influenzando la disponibilità e il tipo di alloggi e contribuendo alla dinamica demografica della zona.
+
+# Indice di disponibilità dei servizi nell'abitazione (A7): 60%
+# Questo indice misura la disponibilità dei servizi all'interno delle abitazioni nell'area considerata. Una bassa disponibilità di servizi potrebbe indicare una scarsa qualità dell'abitazione e del contesto di vita, influenzando l'attrattività dell'area e contribuendo allo spopolamento.
+
+# Incidenza di famiglie con due o più nuclei (F3): 58%
+# Questo indica la percentuale di famiglie che si trovano a gestire due o più nuclei familiari all'interno dell'abitazione. Tale situazione potrebbe riflettere dinamiche familiari complesse o carenze abitative, influenzando la stabilità sociale e la continuità residenziale delle famiglie e contribuendo allo spopolamento.
+
+# Incidenza delle famiglie con potenziale disagio economico (V6): 55%
+# Questo indica la percentuale di famiglie che si trovano in una situazione di potenziale disagio economico nell'area considerata. Queste famiglie potrebbero avere difficoltà nell'accesso ai servizi essenziali e nell'ottenere alloggi adeguati, contribuendo alla vulnerabilità socio-economica dell'area e al suo spopolamento.
+
+# Indice di affollamento delle abitazioni (A14): 42%
+# Questo indice misura il livello di affollamento delle abitazioni nell'area considerata. Un alto livello di affollamento potrebbe indicare una sovrappopolazione delle abitazioni, con conseguenti sfide legate alla qualità della vita e alla disponibilità di risorse, contribuendo allo spopolamento.
+
+# Mobilità residenziale (A15): 40%
+# Questo indica il livello di mobilità residenziale della popolazione nell'area considerata. Una mobilità residenziale elevata potrebbe indicare una tendenza delle persone a spostarsi da un'area all'altra, influenzando la stabilità demografica e la continuità residenziale nell'area considerata.
+
+# Incidenza delle famiglie in potenziale disagio di assistenza (V9): 31%
+# Questo indica la percentuale di famiglie che potrebbero trovarsi in una situazione di potenziale disagio nell'area considerata. Queste famiglie potrebbero necessitare di assistenza e supporto aggiuntivo, influenzando la qualità della vita e la resilienza sociale dell'area e contribuendo al suo spopolamento.
+
+# Adulti in apprendimento permanente (I2): 24%
+# Questo indica la percentuale di adulti impegnati nell'apprendimento permanente nell'area considerata. Un alto tasso di adulti impegnati nell'apprendimento potrebbe indicare un'area dinamica e orientata alla crescita, ma potrebbe anche riflettere carenze nell'istruzione precedente o nel mercato del lavoro locale, contribuendo allo spopolamento.
+
+# Incidenza dell'occupazione nel settore agricolo (L15): 18%
+# Questo indica la percentuale di occupazione nel settore agricolo rispetto alla popolazione totale nell'area considerata. Un'alta incidenza di occupazione nel settore agricolo potrebbe indicare una dipendenza economica da attività agricole tradizionali, con conseguente vulnerabilità agli shock economici e alle variazioni climatiche, contribuendo allo spopolamento.
+
+
+
+# Neural Network (NNET) MILANO
+
+seed = 123
+# Addestra il modello NNET per i dati di Milano utilizzando la cross-validation
+NN_fit <- train(spopolato_milano ~ .,
+                data = training,  # Utilizza il set di addestramento
+                method = "nnet",
+                verbose = FALSE,
+                metric = "ROC",
+                seed = 123,
+                trControl = ctrl)
+
+# Calcola e stampa le metriche del modello NNET
+print("Risultati modello NNET:")
+compute_metrics(NN_fit, testing)
+
+# Interpretazione dei risultati sul Modello NNET
+
+# - Accuratezza (Accuracy): 72.41%
+#   Questo indica che il modello ha previsto correttamente il 72.41% delle istanze nel set di test.
+# - Sensibilità (Sensitivity): 80%
+#   La sensibilità indica la capacità del modello di individuare correttamente le istanze positive, ossia quelle che appartengono alla classe "Yes". 
+#   In questo caso, il modello ha una sensibilità del 80%, il che significa che è in grado di individuare correttamente il 80% delle istanze positive presenti nel set di test.
+# - Specificità (Specificity): 71%
+#   La specificità indica la capacità del modello di individuare correttamente le istanze negative, ossia quelle che appartengono alla classe "No".
+#   Con una specificità del 71%, il modello riesce a individuare correttamente il 71% delle istanze negative presenti nel set di test.
+# - F1 Score: 50%
+#   Il punteggio F1 è una media armonica della precisione e del richiamo del modello. 
+#   con valore 0.5, rappresenta un buon equilibrio tra precisione e richiamo e fornisce una misura complessiva della performance del modello.
+# - Matrice di Confusione:
+# - Il modello ha un buon numero di True Positives (17), indicando che è abbastanza efficace nel predire i casi di spopolamento.
+# - Tuttavia, il numero di False Negatives (7) è relativamente alto, indicando che il modello non riesce a predire correttamente tutti i casi di spopolamento.
+# - Il numero di False Positives (1) è basso, il che è positivo perché significa che il modello raramente predice spopolamento quando in realtà non c'è.
+
+#   
+# Le variabili più importanti identificate dal modello NNET per la previsione del fenomeno di spopolamento a Milano sono:
+
+# Indice di ricambio occupazionale (L13): 100%
+# Questo indice misura il ricambio occupazionale nell'area considerata, indicando la capacità del mercato del lavoro di integrare nuove figure professionali e di rinnovarsi. Un indice elevato potrebbe indicare un'economia dinamica e in crescita, ma potrebbe anche riflettere una perdita di competenze o una flessibilità limitata, contribuendo allo spopolamento.
+
+# Rapporto adulti con diploma o laurea/licenza media (I3): 74%
+# Questo rapporto indica la percentuale di adulti con diploma o laurea/licenza media rispetto alla popolazione totale nell'area considerata. Un alto rapporto potrebbe indicare un livello educativo elevato, che potrebbe influenzare positivamente l'attrattività dell'area per nuove opportunità lavorative e contribuire a mitigare lo spopolamento.
+
+# Mobilità studentesca (M4): 79%
+# Questo indice misura il livello di mobilità degli studenti nell'area considerata. Una mobilità studentesca elevata potrebbe indicare un'offerta formativa attraente e la presenza di istituzioni educative di qualità, influenzando positivamente l'attrattività dell'area per le famiglie e contribuendo a mitigare lo spopolamento.
+
+# Mobilità occupazionale (M3): 69%
+# Questo indice indica il livello di mobilità occupazionale nella popolazione dell'area considerata. Una mobilità occupazionale elevata potrebbe indicare una maggiore flessibilità del mercato del lavoro e la presenza di opportunità di carriera al di fuori dell'area, contribuendo allo spopolamento.
+
+# Mobilità breve (M8): 64%
+# Questo indice misura il livello di mobilità breve, cioè gli spostamenti frequenti e di breve durata all'interno o nei dintorni dell'area considerata. Una mobilità breve elevata potrebbe indicare una scarsa soddisfazione delle esigenze locali o la ricerca di servizi o opportunità migliori altrove, contribuendo allo spopolamento.
+
+# Incidenza delle famiglie in potenziale disagio di assistenza (S9): 53%
+# Questo indica la percentuale di famiglie che potrebbero trovarsi in una situazione di potenziale disagio di assistenza nell'area considerata. Queste famiglie potrebbero necessitare di supporto aggiuntivo, influenzando la resilienza sociale dell'area e contribuendo al suo spopolamento.
+
+# Superficie media delle abitazioni occupate (A2): 50%
+# Questo indica la superficie media delle abitazioni occupate nell'area considerata. Una superficie media delle abitazioni ridotta potrebbe indicare una densità abitativa elevata e la presenza di alloggi di piccole dimensioni, influenzando il comfort e la qualità della vita e contribuendo allo spopolamento.
+
+# Indice di frequenza scolastica straniera (S8): 43%
+# Questo indice misura la frequenza scolastica degli studenti stranieri nell'area considerata. Una frequenza scolastica straniera elevata potrebbe indicare una diversità culturale e una maggiore integrazione sociale, ma potrebbe anche riflettere sfide legate all'inclusione e alla qualità dell'istruzione, contribuendo allo spopolamento.
+
+# Rapporto di mascolinità (P8): 42%
+# Questo rapporto indica la proporzione tra il numero di maschi e femmine nella popolazione totale dell'area considerata. Un rapporto di mascolinità elevato potrebbe indicare disequilibri demografici o dinamiche sociali specifiche, influenzando la struttura della popolazione e le sue caratteristiche socio-economiche, e contribuendo allo spopolamento.
+
+# Incidenza superficie centri e nuclei (P5): 40%
+# Questo indica la percentuale di superficie dedicata ai centri e nuclei abitati rispetto alla superficie totale nell'area considerata. Un'incidenza elevata potrebbe indicare una forte urbanizzazione e densità abitativa, influenzando la disponibilità di spazi verdi e la qualità dell'ambiente urbano, e contribuendo allo spopolamento.
+
+
+
+# Generalized Linear Model (GLM) MILANO 
+seed = 123
+# Addestra il modello GLM per i dati di Milano utilizzando la cross-validation
+Logit_fit <- train(spopolato_milano ~ .,
+                   data = training,  # Utilizza il set di addestramento
+                   method = "glm", 
+                   trControl = ctrl)
+
+# Calcola e stampa le metriche del modello GLM
+print("Risultati modello GLM:")
+compute_metrics(Logit_fit, testing)
+
+# Interpretazione dei risultati sul Modello GLM
+
+# L'accuratezza del modello è del 48%, il che indica che il 48.28% delle predizioni è corretto rispetto al totale delle predizioni.
+# La sensibilità del modello è del 60%, il che significa che il modello è in grado di identificare correttamente il 60% dei casi positivi nel set di dati.
+# La specificità del modello è del 46%, indicando la capacità del modello di identificare correttamente il 45.83% dei casi negativi nel set di dati.
+# Il punteggio F1 del modello è del 0.2, che rappresenta una media armonica tra precisione e richiamo del modello.
+# La matrice di confusione mostra che il modello ha predetto correttamente 3 casi "No" e 11 casi "Yes", ma ha anche fatto 2 errori nel predire "No" e 13 errori nel predire "Yes". La colonna "Overall" della matrice di confusione fornisce una panoramica generale delle prestazioni del modello per ciascuna classe di predizione.
+
+# Descrizione delle variabili più importanti per predire lo spopolamento secondo il modello GLM per Milano
+
+# Indice di famiglie in potenziale disagio di assistenza (V9)
+# Descrizione: Questo indice indica l'incidenza delle famiglie che potrebbero essere in situazioni di bisogno di assistenza.
+# Percentuale: 100%
+
+# Incidenza di famiglie monogenitoriali anziane (F9)
+# Descrizione: Questo indice rappresenta la percentuale di famiglie anziane guidate da un solo genitore.
+# Percentuale: 63%
+
+# Mobilità studentesca (M4)
+# Descrizione: Questo indice indica la percentuale di studenti che si spostano per motivi di studio.
+# Percentuale: 58%
+
+# Tasso di disoccupazione giovanile (L9)
+# Descrizione: Questo indice rappresenta la percentuale di giovani che sono disoccupati rispetto alla popolazione giovanile totale.
+# Percentuale: 57%
+
+# Incidenza di residenti stranieri (S1)
+# Descrizione: Questo indice indica la percentuale di residenti stranieri all'interno della popolazione totale.
+# Percentuale: 55%
+
+# Variazione intercensuaria popolazione con meno di 15 anni (P3)
+# Descrizione: Questo indice rappresenta la variazione percentuale annuale della popolazione con meno di 15 anni rispetto al censimento precedente.
+# Percentuale: 49%
+
+# Rapporto occupati indipendenti maschi/femmine (L22)
+# Descrizione: Questo indice indica il rapporto tra uomini e donne che lavorano in modo indipendente.
+# Percentuale: 49%
+
+# Incidenza di adulti con titolo di studio superiore (I6)
+# Descrizione: Questo indice rappresenta la percentuale di adulti che hanno conseguito un titolo di studio superiore, come una laurea o un diploma universitario.
+# Percentuale: 46%
+
+# Rapporto di mascolinità (P8)
+# Descrizione: Questo indice rappresenta il rapporto tra il numero di maschi e il numero di femmine nella popolazione.
+# Percentuale: 45%
+
+# Tasso di occupazione 15-29 anni (L14)
+# Descrizione: Questo indice rappresenta la percentuale di occupazione nella fascia di età compresa tra 15 e 29 anni.
+# Percentuale: 45%
+
+
+############################# Grafici Milano #################################
+
+
+# 1 - ROC CURVES per i 5 modelli - Milano
+
+# Calcolo delle ROC curves
+roc_curve_gbm <- roc(testing$spopolato_milano, predict(milano_GBM, testing, type = "prob")[,2], levels=c("No", "Yes"), direction="<")
+roc_curve_rf <- roc(testing$spopolato_milano, predict(RF_fit, testing, type = "prob")[,2], levels=c("No", "Yes"), direction="<")
+roc_curve_glmnet <- roc(testing$spopolato_milano, predict(Lasso_fit, testing, type = "prob")[,2], levels=c("No", "Yes"), direction="<")
+roc_curve_nnet <- roc(testing$spopolato_milano, predict(NN_fit, testing, type = "prob")[,2], levels=c("No", "Yes"), direction="<")
+roc_curve_glm <- roc(testing$spopolato_milano, predict(Logit_fit, testing, type = "prob")[,2], levels=c("No", "Yes"), direction="<")
+
+# Estrazione delle AUC
+auc_gbm <- auc(roc_curve_gbm)
+auc_rf <- auc(roc_curve_rf)
+auc_glmnet <- auc(roc_curve_glmnet)
+auc_nnet <- auc(roc_curve_nnet)
+auc_glm <- auc(roc_curve_glm)
+
+# Visualizza le AUC
+print(paste("AUC for GBM: ", auc_gbm))
+print(paste("AUC for RF: ", auc_rf))
+print(paste("AUC for GLMNET: ", auc_glmnet))
+print(paste("AUC for NNET: ", auc_nnet))
+print(paste("AUC for GLM: ", auc_glm))
+
+# I risultati delle AUC mostrano che il modello modello di rete neurale (NNET), seguito dai modelli di ensemble come GBM e RF, offrono le migliori performance per la previsione del fenomeno di spopolamento
+
+# Visualizzazione dei Plots
+plot(roc_curve_gbm, col="blue", main="ROC Curves for Different Models")
+plot(roc_curve_rf, col="red", add=TRUE)
+plot(roc_curve_glmnet, col="green", add=TRUE)
+plot(roc_curve_nnet, col="purple", add=TRUE)
+plot(roc_curve_glm, col="orange", add=TRUE)
+legend("bottomright", legend=c("GBM", "RF", "GLMNET", "NNET", "GLM"), col=c("blue", "red", "green", "purple", "orange"), lwd=2)
+
+# Il grafico ROC presenta le curve di cinque modelli diversi per la valutazione delle loro performance. L'asse X rappresenta la specificità (Specificity) con valori da 0 a -0.5, mentre l'asse Y rappresenta la sensibilità (Sensitivity) con valori da 0.00 a 1.00. La linea diagonale rappresenta la curva ROC di un classificatore casuale.
+
+# GLM: La curva del modello Generalized Linear Model (GLM) segue quasi perfettamente la linea diagonale, indicando una performance simile a un classificatore casuale.
+# GLMNET, RF, GBM: Le curve dei modelli GLMNET, Random Forest (RF) e Gradient Boosting Machine (GBM) salgono con un andamento a scala, suggerendo una performance incrementale e con diversi punti di miglioramento progressivo in termini di sensibilità e specificità.
+# NNET: La curva del modello Neural Network (NNET) mostra un andamento particolare, partendo diritta per poi creare un angolo verso la metà del grafico e ritornare poi retta, indicando un miglioramento improvviso delle capacità di classificazione a metà percorso.
+
+
+
+# 2 - Partial Plots per il modello GMB - Milano
+
+# Trasformo la variabile dummy "spopolato_milano" in formato numerico sottraendo 1.
+# Seleziono le variabili più importanti nel modello GBM per l'analisi.
+# Addestro un modello GBM utilizzando le variabili selezionate.
+
+# Trasforma la dummy spopolato_milano in formato numerico
+data_milano$spopolato_milano_numeric <- as.numeric(data_milano$spopolato_milano) - 1
+
+# Cre il modello GBM utilizzando solo le colonne selezionate per Milano
+selected_data_milano <- data_milano[, c("F4", "A15", "P1", "L20", "P14", "L2", "F6", "L9", "P5", "I8", "spopolato_milano")]
+
+# Addestra il modello GBM per Milano
+GBM_model_selected_milano <- gbm(spopolato_milano ~ ., data = selected_data_milano, distribution = "gaussian", n.trees = 100)
+
+# Crea i partial plots per le variabili selezionate utilizzando il modello GBM per Milano
+partial_plot_F4 <- plot.gbm(GBM_model_selected_milano, i.var = "F4", n.trees = 100, return.grid = TRUE)
+partial_plot_A15 <- plot.gbm(GBM_model_selected_milano, i.var = "A15", n.trees = 100, return.grid = TRUE)
+partial_plot_P1 <- plot.gbm(GBM_model_selected_milano, i.var = "P1", n.trees = 100, return.grid = TRUE)
+partial_plot_L20 <- plot.gbm(GBM_model_selected_milano, i.var = "L20", n.trees = 100, return.grid = TRUE)
+partial_plot_P14 <- plot.gbm(GBM_model_selected_milano, i.var = "P14", n.trees = 100, return.grid = TRUE)
+partial_plot_L2 <- plot.gbm(GBM_model_selected_milano, i.var = "L2", n.trees = 100, return.grid = TRUE)
+partial_plot_F6 <- plot.gbm(GBM_model_selected_milano, i.var = "F6", n.trees = 100, return.grid = TRUE)
+partial_plot_L9 <- plot.gbm(GBM_model_selected_milano, i.var = "L9", n.trees = 100, return.grid = TRUE)
+partial_plot_P5 <- plot.gbm(GBM_model_selected_milano, i.var = "P5", n.trees = 100, return.grid = TRUE)
+partial_plot_I8 <- plot.gbm(GBM_model_selected_milano, i.var = "I8", n.trees = 100, return.grid = TRUE)
+
+# Visualizza i partial plots utilizzando ggplot2
+ggplot(partial_plot_F4, aes(x = F4, y = y)) +
+  geom_path(color = "blue", size = 1.5) +
+  labs(title = "Partial Plot for F4 - GBM (Milano)")
+
+# Variabile F4:
+
+# Inizialmente, la curva della variabile F4 sembra indicare che la variabile non abbia alcun effetto sulla risposta del modello. 
+# Tuttavia, dopo un certo valore sull'asse x (>5), la curva si alza verticalmente, indicando un aumento rapido della risposta del modello all'aumentare dei valori della variabile indipendente. Successivamente, dopo alcuni momenti di fluttuazione, la curva sembra stabilizzarsi, suggerendo che la variabile ha un impatto significativo sulla risposta del modello.
+
+ggplot(partial_plot_A15, aes(x = A15, y = y)) +
+  geom_line(color = "red", size = 1.5) +
+  labs(title = "Partial Plot for A15 - GBM (Milano)")
+
+# Variabile A15:
+
+# Anche nell'analisi della curva della variabile A15, inizialmente sembra che non influenzi significativamente la risposta del modello. Tuttavia, successivamente emergono degli andamenti notevolmente irregolari nel trend. Si notano picchi di positività alternati a momenti di negatività, seguiti da un aumento progressivo fino al raggiungimento di un punto di saturazione (dove x < 6 e y = 1.84). In questo punto, la risposta del modello raggiunge il suo massimo, stabilizzandosi su valori più negativi in seguito.
+
+ggplot(partial_plot_P1, aes(x = P1, y = y)) +
+  geom_line(color = "green", size = 1.5) +
+  labs(title = "Partial Plot for P1 - GBM (Milano)")
+
+# Variabile P1:
+
+# La curva della variabile P1 mostra un aumento rapido della risposta del modello all'aumentare dei valori della variabile indipendente, suggerendo un forte impatto della variabile sulla risposta del modello. 
+# Successivamente, la curva indica un’evidente saturazione, stabilizzandosi su valori costanti. Questo potrebbe indicare che la variabile P1 ha un impatto significativo solo su determinati range di valori, dopo i quali il suo effetto diventa trascurabile.
+
+
+ggplot(partial_plot_L20, aes(x = L20, y = y)) +
+  geom_line(color = "orange", size = 1.5) +
+  labs(title = "Partial Plot for L20 - GBM (Milano)")
+
+# Variabile L20:
+
+# In presenza di valori leggermente superiori a 1.80, la variabile suggerisce che # non si osserva alcuna variazione significativa nella risposta del modello al 
+# variare dei valori della variabile indipendente. Tuttavia, con l'aumentare 
+# dei valori della variabile indipendente, la risposta del modello mostra 
+# un aumento, seppur con un andamento irregolare e non uniforme. Successivamente, # tale aumento tende a declinare, assumendo infine un andamento negativo, 
+# suggerendo  una relazione negative tra la variabile indipendente e la
+# risposta del modello.
+
+
+ggplot(partial_plot_P14, aes(x = P14, y = y)) +
+  geom_line(color = "purple", size = 1.5) +
+  labs(title = "Partial Plot for P14 - GBM (Milano)")
+
+# Variabile P14: 
+
+# sembra che sulle zone estreme non vi sia alcuna variazione nella risposta del modello al variare dei valori della variabile indipendente
+# mentre sulla zona centrale è caratterizzatta da una relazione non lineare tra la variabile e la risposta del modello sulla zona
+
+ggplot(partial_plot_L2, aes(x = L2, y = y)) +
+  geom_line(color = "pink", size = 1.5) +
+  labs(title = "Partial Plot for L2 - GBM (Milano)")
+
+# Variabile L2:
+
+# anche in questo caso vi sono delle zone esterne piatte, ma una zona centrale che designa un andamento positivo della variabile
+# con conseguente risposta positiva da parte del modello
+
+ggplot(partial_plot_F6, aes(x = F6, y = y)) +
+  geom_line(color = "cyan", size = 1.5) +
+  labs(title = "Partial Plot for F6 - GBM (Milano)")
+
+# Variabile F6:
+
+# caratterizzata da mancata risposta da parte del modello sulle zone estreme, presente irregolarità con picchi di positività concentrate sulla zoma centrale del grafico, con una leggera stabilizzazione sulla estrema dello stesso, facendo pensare ad un andamento gaussiano.
+
+ggplot(partial_plot_L9, aes(x = L9, y = y)) +
+  geom_line(color = "brown", size = 1.5) +
+  labs(title = "Partial Plot for L9 - GBM (Milano)")
+
+# Variabile L9:
+
+# La curva inizialmente mostra un andamento orizzontale, parallelo all'asse X, indicando che inizialmente non c'è alcuna variazione nella risposta del modello al variare dei valori della variabile indipendente. Successivamente, si osserva una relazione altamente irregolare, con picchi positivi e negativi, mentre i valori della variabile indipendente aumentano. Questo andamento suggerisce che, dopo un certo punto critico, ulteriori aumenti nella variabile indipendente potrebbero avere un impatto variabile sulla risposta del modello. La presenza di picchi positivi e negativi indica che altri fattori potrebbero influenzare la risposta del modello in modo complesso e non lineare, oltre alla variabile considerata.
+
+ggplot(partial_plot_P5, aes(x = P5, y = y)) +
+  geom_line(color = "black", size = 1.5) +
+  labs(title = "Partial Plot for P5 - GBM (Milano)")
+
+# Variabile P5:
+
+# # dopo i primissimi valori con andamento stabile e negative,  la variabile si presenta come relazionata positivamente al modello, con delle irregolarità che la accompagnano fino ad arrivare a valori quasi del tutto saturi 
+
+ggplot(partial_plot_I8, aes(x = I8, y = y)) +
+  geom_line(color = "yellow", size = 1.5) +
+  labs(title = "Partial Plot for I8 - GBM (Milano)")
+
+# Variabile I8: 
+
+# Questa rappresentazione grafica inizia con una linea piatta, orizzontale, indicando che non vi è alcuna variazione nella risposta del modello all'aumentare dei valori della variabile indipendente. Successivamente, si osserva un'ascensione verticale, suggerendo un aumento significativo nella risposta del modello al crescere dei valori della variabile indipendente. Dopo questa crescita iniziale, la linea diventa di nuovo piatta, indicando che non vi è alcuna variazione significativa nella risposta del modello mentre i valori della variabile indipendente continuano ad aumentare. Tuttavia, questa fase piatta è seguita da una discesa verticale, suggerendo una diminuzione rapida della risposta del modello al continuo aumento dei valori della variabile indipendente. Infine, la linea diventa di nuovo piatta, indicando che la risposta del modello si stabilizza nuovamente. Questo andamento complessivo suggerisce che esistono punti critici nella relazione tra la variabile indipendente e la risposta del modello, con fasi di crescita, stabilizzazione e poi decrescita della risposta, indicando un'interazione complessa tra la variabile considerata e la risposta del modello.
+
+
+# 3 - Partial Plots per il modello RF - Milano
+
+# Seleziono le variabili più importanti nel modello GBM per l'analisi.
+# Addestro un modello RF utilizzando le variabili selezionate e la dummy numerica
+
+# Seleziona le variabili più importanti
+selected_columns <- c("F4", "M8", "F9", "S2", "L17", "L11", "L2", "A15", "M6", "L20", "spopolato_milano_numeric")
+
+# Crea il dataset con le variabili selezionate
+selected_data_milano <- data_milano[, selected_columns]
+
+# Addestra il modello Random Forest
+RF_model_selected <- randomForest(spopolato_milano_numeric ~ ., data = selected_data_milano, ntree = 100)
+
+# Crea i partial plots per le variabili selezionate utilizzando il modello Random Forest
+partial_plot_F4 <- partial(RF_model_selected, pred.var = "F4", plot = FALSE)
+partial_plot_M8 <- partial(RF_model_selected, pred.var = "M8", plot = FALSE)
+partial_plot_F9 <- partial(RF_model_selected, pred.var = "F9", plot = FALSE)
+partial_plot_S2 <- partial(RF_model_selected, pred.var = "S2", plot = FALSE)
+partial_plot_L17 <- partial(RF_model_selected, pred.var = "L17", plot = FALSE)
+partial_plot_L11 <- partial(RF_model_selected, pred.var = "L11", plot = FALSE)
+partial_plot_L2 <- partial(RF_model_selected, pred.var = "L2", plot = FALSE)
+partial_plot_A15 <- partial(RF_model_selected, pred.var = "A15", plot = FALSE)
+partial_plot_M6 <- partial(RF_model_selected, pred.var = "M6", plot = FALSE)
+partial_plot_L20 <- partial(RF_model_selected, pred.var = "L20", plot = FALSE)
+
+# Visualizza i partial plots utilizzando ggplot2
+ggplot(partial_plot_F4, aes(x = F4, y = yhat)) +
+  geom_line(color = "blue", size = 1.5) +
+  labs(title = "Partial Plot for F4 - Random Forest")
+
+# Variabile F4:
+
+# Questa curva, seppur in maniera irregolare, presenta fin da subito una relazione positiva la variabile e la risposta del modello
+# seguita dalla presenza di saturazione su valori alti della y (>0.8).
+
+ggplot(partial_plot_M8, aes(x = M8, y = yhat)) +
+  geom_line(color = "red", size = 1.5) +
+  labs(title = "Partial Plot for M8 - Random Forest")
+
+# Variabile M8:
+
+# La curva fin dall’inizio mostra una relazione irregolare con l'asse X per valori elevati della variabile dipendente. Questo suggerisce che per valori più alti della variabile indipendente, il modello non risponde in modo coerente o lineare, ma mostra una sorta di plateau con variazioni imprevedibili. Tuttavia, una volta superato un certo punto critico (ad esempio, oltre il valore di 75 sull'asse X), la curva inizia a scendere, indicando una risposta negativa del modello all'aumentare dei valori della variabile indipendente. La natura frastagliata dell'andamento suggerisce che anche in questa fase la relazione tra la variabile indipendente e la risposta del modello è complessa e non lineare
+
+ggplot(partial_plot_F9, aes(x = F9, y = yhat)) +
+  geom_line(color = "green", size = 1.5) +
+  labs(title = "Partial Plot for F9 - Random Forest")
+
+# Variabile F9:
+
+# come nel caso precedente, anche questo modello si presenta come complesso,
+# ma cin una breve relazione positiva tra modello e variabile indipendente sulla zona iniziale
+# ed una successiva relazione negativa più netta rispetto al precedente caso.
+
+ggplot(partial_plot_S2, aes(x = S2, y = yhat)) +
+  geom_line(color = "orange", size = 1.5) +
+  labs(title = "Partial Plot for S2 - Random Forest")
+
+# Variabile S2:
+
+# questa crva rappresenta una graduale relazione positiva tra variabile e modello predittore
+# con una mai costante stabilizzazione del modello su valori elevati della y,
+# proseguendo successivamente con una serie di valori negativi, fino alla sua stabilizzazione (y>0.70)
+
+ggplot(partial_plot_L17, aes(x = L17, y = yhat)) +
+  geom_line(color = "purple", size = 1.5) +
+  labs(title = "Partial Plot for L17 - Random Forest")
+
+# Variabile L17:
+
+# Nonostante presenti parecchie irregolarità, la curva della variabile L17 mostra un forte andamento positivo che gradualmente raggiunge la sua massima espressione. L'andamento della curva non è lineare, suggerendo una relazione complessa tra la variabile e la risposta del modello.
+
+ggplot(partial_plot_L11, aes(x = L11, y = yhat)) +
+  geom_line(color = "pink", size = 1.5) +
+  labs(title = "Partial Plot for L11 - Random Forest")
+
+# Variabile L11:
+
+# Il grafico della variabile L11 mostra un andamento completamente irregolare e complesso. Nonostante abbia un iniziale andamento positivo, la curva diventa poi orizzontale ma mai completamente diritta nella zona superiore del grafico. Successivamente, la curva riprende a scendere, stabilizzandosi su valori intorno a 0.75 dell'asse y. Questo suggerisce che la variabile L11 possa influenzare la risposta del modello in modo variabile e non lineare.
+
+ggplot(partial_plot_L2, aes(x = L2, y = yhat)) +
+  geom_line(color = "cyan", size = 1.5) +
+  labs(title = "Partial Plot for L2 - Random Forest")
+
+# Variabile L2:
+
+# Simile al grafico precedente, la curva della variabile L2 mostra un andamento forse leggermente più omogeneo. Anche in questo caso, nonostante alcune irregolarità, la curva suggerisce una relazione complessa tra la variabile e la risposta del modello, con un andamento che potrebbe non essere completamente lineare.
+
+ggplot(partial_plot_A15, aes(x = A15, y = yhat)) +
+  geom_line(color = "yellow", size = 1.5) +
+  labs(title = "Partial Plot for A15 - Random Forest")
+
+# Variabile A15:
+
+# Caratterizzato da una relazione positiva tra variabile e risposta del modello,
+# questa curva presenta un assestamento oltre il valore più alto della y
+
+ggplot(partial_plot_M6, aes(x = M6, y = yhat)) +
+  geom_line(color = "brown", size = 1.5) +
+  labs(title = "Partial Plot for M6 - Random Forest")
+
+# Variabile M6:
+
+# Il partial plot della variabile mostra un comportamento complesso che può essere suddiviso in diverse fasi:
+# 
+# Inizialmente, la curva sale rapidamente, indicando che per valori bassi di X, la variabile ha un forte effetto positivo sulla risposta del modello.
+# Successivamente, la curva acquisisce un andamento orizzontale ma frastagliata, suggerendo che l'influenza della variabile sulla risposta del modello rimane alta ma diventa più variabile. Questo potrebbe indicare la presenza di rumore o di interazioni con altre variabili che influenzano la risposta in questo intervallo di valori di X.
+# La curva poi scende verso metà dei valori dell'asse Y, indicando una riduzione dell'effetto positivo della variabile sulla risposta del modello.
+# Si osserva una sorta di dosso, dove la curva risale leggermente, suggerendo un aumento temporaneo dell'influenza positiva della variabile sulla risposta del modello.
+# Infine, la curva scende nuovamente per valori più alti di X, indicando che l'effetto della variabile sulla risposta del modello diventa negativo per valori elevati della variabile X.
+# 
+# Questo comportamento complesso può essere dovuto a diverse dinamiche presenti nei dati, come interazioni non lineari tra variabili, effetti soglia o la presenza di gruppi di dati con comportamenti differenti. 
+
+ggplot(partial_plot_L20, aes(x = L20, y = yhat)) +
+  geom_line(color = "black", size = 1.5) +
+  labs(title = "Partial Plot for L20 - Random Forest")
+
+# Variabile L20:
+
+# La curva parte in alto a sinistra con valori alti sull'asse Y e mantiene un andamento rettilineo per valori bassi di X, indicando che inizialmente, per bassi valori della variabile X, l'influenza sulla risposta del modello è costante e relativamente alta.
+# Man mano che i valori di X aumentano, la curva diventa frastagliata, suggerendo che l'influenza della variabile sulla risposta del modello diventa meno prevedibile e più variabile. Questo comportamento potrebbe indicare che ci sono interazioni complesse o effetti non lineari che influenzano la risposta del modello in questo intervallo di valori di X.
+# Infine, per valori ancora più alti di X, la curva continua a essere frastagliata ma scende verso il basso, indicando che l'influenza della variabile sulla risposta del modello diminuisce. La discesa della curva suggerisce che per valori elevati della variabile X, l'effetto sulla risposta del modello diventa negativo.
+
+# In sintesi, il partial plot evidenzia tre comportamenti distinti della variabile: un effetto costante e positivo per valori bassi di X, una variabilità significativa per valori intermedi di X e un effetto negativo per valori alti di X. Questo comportamento complesso può essere dovuto a interazioni tra variabili, effetti non lineari o altre dinamiche presenti nei dati.
+
+
+
+# 4 - coefficient e Cross-Validation Plots per il modello GLMNET - Milano
+
+# Seleziona le variabili più importanti
+selected_data_milano <- data_milano[, c("V4", "V5", "A7", "F3", "V6", "A14", "A15", "V9", "I2", "L15", "spopolato_milano")]
+
+# Prepara i dati per GLMNet
+x <- as.matrix(selected_data_milano[, -ncol(selected_data_milano)])
+y <- selected_data_milano$spopolato_milano
+
+# Crea il modello GLMNet
+glmnet_model <- glmnet(x, y, family = "binomial")
+
+# Plot dei coefficienti rispetto a lambda
+plot(glmnet_model, xvar = "lambda", label = TRUE)
+title("Coefficient Plot - GLMNet", line = 3)  # Imposta line su 3 per spostare il titolo più in alto
+
+# Coefficietn Plot:
+
+# Il grafico dei coefficienti del modello GLMNET mostra l'evoluzione dei coefficienti dei vari predittori rispetto ai valori di Log Lambda sull'asse X, che varia da -8 a -2. 
+# Sull'asse Y, i coefficienti sono rappresentati con valori da -4 a +6. Le curve sottili e colorate rappresentano i coefficienti dei singoli predittori. 
+# All'inizio, i coefficienti partono da valori differenti sull'asse Y e man mano che Log Lambda aumenta (si avvicina a -2), i coefficienti tendono a congiungersi, indicando che molti coefficienti si avvicinano a zero, riflettendo un aumento della penalizzazione Lasso nel modello.
+
+# Cross-validation per scegliere il miglior lambda
+cv_model <- cv.glmnet(x, y, family = "binomial")
+plot(cv_model)
+title("Cross-Validation Plot - GLMNet", line = 3)  # Imposta line su 3 per spostare il titolo più in alto
+
+# Cross- Validation Plot
+
+# Il grafico della cross-validation mostra la Binomial Deviance sull'asse Y, con valori da 0.6 a 1.0, in funzione dei valori di Log Lambda sull'asse X, che variano da -8 a -2. 
+# I punti rossi all'interno della griglia rappresentano i valori della devianza binomiale ottenuti durante la validazione incrociata. All'inizio, nella zona centrale dell'asse Y, i valori rimangono relativamente costanti lungo l'asse X. 
+# Tuttavia, a partire da Log Lambda = -4, i valori di devianza iniziano a salire, raggiungendo un picco intorno a Log Lambda = -2. 
+# Questo comportamento indica che valori troppo elevati di Log Lambda peggiorano la performance del modello, suggerendo un punto ottimale per Log Lambda attorno a -4, dove la devianza è minima.
+
+# Questi grafici offrono una visione dettagliata di come la penalizzazione influenzi i coefficienti del modello GLMNET e aiutano a identificare il valore ottimale di Log Lambda per minimizzare l'errore di predizione.
+
+
+
+# 5 - Rete Neurale per il modello NNET - Milano
+
+# Seleziona le variabili più importanti dal dataframe data_milano
+selected_data_milano_nnet <- data_milano[, c("L13", "I3", "M4", "M3", "M8", "S9", "A2", "S8", "P8", "P5", "spopolato_milano")]
+
+# Prepara i dati per il modello NNet
+x_nnet <- selected_data_milano_nnet[, -ncol(selected_data_milano_nnet)]
+y_nnet <- selected_data_milano_nnet$spopolato_milano
+
+# Crea il modello NNet con neuralnet
+nnet_model_nnet <- neuralnet(y_nnet ~ ., data = x_nnet, hidden = 5, linear.output = TRUE)
+
+# Plot della rete neurale
+plotnet(nnet_model_nnet)
+
+# Aggiungi un titolo al grafico
+title(main = "Rete Neurale per il Modello di Spopolamento di Milano")
+
+# Dal grafico della rete neurale si possono estrarre informazioni preziose sulla sua struttura e sul ruolo delle variabili di input.
+# Le variabili elencate a sinistra, come I3, M4, M3, ecc., sono considerate le 10 variabili più importanti per il modello.
+# Le frecce che partono dai pallini azzurri (variabili di input) e si dirigono verso i nodi H1-H5 (livello nascosto) indicano le connessioni tra le variabili di input e i nodi nascosti della rete neurale.
+# Le frecce che collegano i nodi nascosti (H1-H5) ai nodi di output (O1, O2) indicano come le informazioni elaborate nei nodi nascosti influenzino le predizioni finali della rete neurale.
+# Le frecce aggiuntive che collegano i nodi di output (O1, O2) ai nodi B2 e le frecce che collegano i nodi nascosti (H1-H5) al nodo B1 rappresentano connessioni aggiuntive all'interno della rete neurale.
+# In sintesi, il grafico fornisce una rappresentazione visiva della struttura della rete neurale e delle connessioni tra le variabili di input, i nodi nascosti e i nodi di output. 
+# Le variabili elencate sono considerate importanti per il modello e le connessioni mostrano come queste variabili influenzino le predizioni finali della rete neurale per lo spopolamento su Milano.
+
+
+
+# 6 - Plot sull'importanza delle prime dieci variabili per il modello GLM - Milano
+
+# Ottieni i coefficienti stimati del modello (escludendo l'intercetta)
+coefficients <- coef(Logit_fit$finalModel)[-1]
+
+# Seleziona le prime dieci variabili importanti (escludendo l'intercetta)
+top_ten_importance <- head(sort(abs(coefficients), decreasing = TRUE), 10)
+
+# Seleziona i nomi delle variabili corrispondenti alle prime dieci importanze
+top_ten_variables <- names(top_ten_importance)
+
+# Creare un dataframe con i nomi delle variabili e le loro importanze
+importance_df <- data.frame(Variable = top_ten_variables, Importance = top_ten_importance)
+
+# Grafico delle importanze delle variabili
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance, fill = Importance)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "blue", high = "red") +  # Scala di colori da blu a rosso in base all'importanza
+  labs(title = "Importanza delle prime dieci variabili - Logit",
+       x = "Variabile",
+       y = "Importanza",
+       fill = "Importanza") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Commento sulla discrepanza tra le variabili più importanti nel modello GLM e quelle visualizzate sul grafico
+
+# Il grafico delle 10 variabili più importanti sullo spopolamento per il modello GLM mostra una serie di variabili che potrebbero essere considerate cruciali per il processo decisionale del modello. Tuttavia, è importante notare che le variabili visualizzate sul grafico potrebbero non corrispondere esattamente alle variabili più rilevanti identificate nel modello GLM stesso.
+# Le discrepanze tra le variabili visualizzate sul grafico e quelle effettivamente rilevanti nel modello GLM potrebbero derivare da diversi fattori. Ad esempio, il grafico potrebbe contenere tecniche di riduzione della dimensionalità. Inoltre, potrebbero essere presenti interazioni complesse o relazioni non lineari tra le variabili nel modello GLM che non sono immediatamente evidenti nel grafico delle variabili più importanti.
+# Pertanto, in questo contesto, si farà riferimento direttamente al modello GLM per identificare le variabili più importanti e basare le decisioni di modellazione su tali risultati. 
+
+
+
+
+############################# PROCESSING PALERMO #############################
+
+# Creo la variabile "spopolato_palermo" utilizzando la colonna "Spopolato" del mio dataframe "palermo_totale".
+# Trasformo "spopolato_palermo" in un fattore con livelli "No" e "Yes".
+# Successivamente, creo il mio dataframe "data_palermo" contenente le variabili indipendenti e la mia variabile di risposta "spopolato_palermo",
+# selezionando le colonne dalla "P1" alla "V9" dal mio dataframe "Indicatori" e aggiungendo la variabile "spopolato_palermo".
+
+# Crea il set spopolato_palermo dalla colonna Spopolato di palermo_totale
+spopolato_palermo <- palermo_totale$Spopolato
+
+# Trasforma spopolato_palermo in factor con livelli "No" e "Yes"
+spopolato_palermo <- factor(spopolato_palermo, levels = c(0, 1), labels = c("No", "Yes"))
+
+# Crea il dataframe con le variabili indipendenti e la variabile di risposta
+data_palermo <- Indicatori %>%
+  filter(Cod_comune >= 82001 & Cod_comune <= 82080) %>%
+  select(P1:V9) %>%
+  mutate(spopolato_palermo = spopolato_palermo)
+print(spopolato_palermo)
+
+
+
+# Divido i dati relativi a Palermo in due set: uno per l'addestramento e uno per il test.
+# Utilizzo il set.seed(123) per garantire la riproducibilità dei risultati.
+# Seleziono casualmente 100 righe per l'addestramento utilizzando il campionamento con sostituzione.
+# Calcolo le metriche di valutazione del modello per Palermo, incluso l'accuracy, la sensibilità, la specificità, l'F1 score e la matrice di confusione.
+# Calcolo l'importanza delle variabili utilizzando la funzione varImp() del pacchetto caret.
+# Ordino l'importanza delle variabili in ordine decrescente e seleziono le prime N variabili.
+# Definisco anche i controlli per il modello di addestramento di Palermo utilizzando la cross-validation con 5 fold.
+
+# Suddividi i dati in dati di addestramento e di test
+set.seed(123)  # Impostazione del seed per riproducibilità
+num_rows_training_palermo <- 100  # Numero di righe per l'addestramento
+training_index_palermo <- sample(1:nrow(data_palermo), num_rows_training_palermo, replace = TRUE)  # Selezione casuale delle righe per l'addestramento con sostituzione
+training_palermo <- data_palermo[training_index_palermo, ]
+testing_palermo <- data_palermo[-training_index_palermo, ]
+
+# Definisci le metriche da calcolare per Palermo
+compute_metrics_palermo <- function(model, test_data) {
+  # Calcolare e stampare l'accuratezza (accuracy) del modello
+  accuracy <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_palermo)$overall["Accuracy"]
+  print(paste("Accuratezza (Accuracy) per Palermo:", accuracy))
+  
+  # Calcola e stampa la sensibilità (sensitivity) del modello
+  sensitivity <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_palermo)$byClass["Sensitivity"]
+  print(paste("Sensibilità (Sensitivity) per Palermo:", sensitivity))
+  
+  # Calcola e stampa la specificità (specificity) del modello
+  specificity <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_palermo)$byClass["Specificity"]
+  print(paste("Specificità (Specificity) per Palermo:", specificity))
+  
+  # Calcola e stampa l'F1 score del modello
+  f1_score <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_palermo)$byClass["F1"]
+  print(paste("F1 Score per Palermo:", f1_score))
+  
+  # Calcola e stampa la matrice di confusione
+  conf_matrix <- confusionMatrix(data = predict(model, newdata = test_data), reference = test_data$spopolato_palermo)
+  print("Matrice di Confusione per Palermo:")
+  print(conf_matrix$table)
+  
+  # Ottieni e stampa la lista delle N variabili più importanti in base ai risultati
+  N <- 10  # Numero di variabili più importanti da visualizzare
+  importance <- varImp(model)$importance
+  ordered_importance <- importance[order(apply(importance, 1, max), decreasing = TRUE), , drop = FALSE]
+  print(ordered_importance[1:N, , drop = FALSE])
+}
+
+# Definisci i controlli sull'addestramento
+ctrl_palermo <- trainControl(
+  method = "cv",
+  number = 5,
+  verboseIter = TRUE,
+  classProbs = TRUE,
+  summaryFunction = twoClassSummary)
+
+
+
+# Gradient Boosting Machine (GBM) Palermo
+
+# Addestra il modello GBM per i dati di Palermo utilizzando la cross-validation
+palermo_GBM <- train(spopolato_palermo ~ .,
+                     data = training_palermo,  # Utilizza il set di addestramento per Palermo
+                     method = "gbm",
+                     verbose = TRUE,
+                     metric = "ROC", 
+                     trControl = ctrl_palermo)
+
+# Calcola e stampa le metriche del modello GBM per Palermo
+print("Risultati modello GBM per Palermo:")
+compute_metrics_palermo(palermo_GBM, testing_palermo)
+
+
+# Interpretazione dei Risultati del Modello GBM per Palermo
+
+# Metriche di Valutazione
+
+# Accuratezza (Accuracy): 0.8214 (82.14%)
+# In questo caso, il modello ha un'accuratezza del 82.14%, il che significa che predice correttamente lo 82.14% dei casi.
+
+# Sensibilità (Sensitivity): 1 (100%)
+# Con un valore di 1, il modello identifica tutti i casi di spopolamento, senza falsi negativi.
+
+# Specificità (Specificity): 0.375 (37.50%)
+# Con un valore del 37.50%, il modello ha difficoltà a distinguere correttamente i casi in cui non c'è spopolamento, mostrando un alto numero di falsi positivi.
+
+# F1 Score: 0.8889
+# Con un punteggio di 0.8889, il modello mostra un buon equilibrio tra la capacità di predire correttamente i veri casi di spopolamento e la precisione delle sue predizioni complessive.
+
+# Matrice di Confusione:
+#  Il modello ha identificato correttamente 20 casi di "No Spopolamento" e 3 casi di "Sì Spopolamento", ma ha anche predetto erroneamente 5 casi di "No Spopolamento" e 0 casi di "Sì Spopolamento".
+
+# Le variabili più importanti identificate dal modello GBM per la previsione del fenomeno di spopolamento a Palermo sono:
+
+# - P4 (Variazione intercensuaria popolazione con 15 anni ed oltre): 100.00%
+# Questo indica una variazione significativa nella popolazione adulta, che potrebbe riflettere cambiamenti demografici influenzando lo spopolamento.
+
+# - P2 (Variazione intercensuaria annua): 32.37%
+# Indica una variazione annuale significativa della popolazione, che può riflettere cambiamenti demografici o flussi migratori, influenzando lo spopolamento.
+
+# - A11 (Indice di espansione edilizia nei centri e nuclei abitati): 31.66%
+# Suggerisce una significativa espansione edilizia nelle aree urbane, con potenziali impatti sull'attrattività delle aree e lo spopolamento.
+
+# - A9 (Incidenza edifici in pessimo stato di conservazione): 21.11%
+# Indica una percentuale significativa di edifici in cattivo stato, che può influenzare negativamente l'attrattività delle aree e contribuire allo spopolamento.
+
+# - F7 (Incidenza di coppie giovani con figli): 20.76%
+# Suggerisce una percentuale significativa di coppie giovani con figli, con possibili implicazioni sull'attrattività delle aree per le famiglie e lo spopolamento.
+
+# - M2 (Mobilità fuori comune per studio o lavoro): 19.57%
+# Indica un livello significativo di mobilità per motivi di studio o lavoro al di fuori del comune di residenza, che può influenzare lo spopolamento.
+
+# - F6 (Incidenza di coppie giovani senza figli): 16.61%
+# Suggerisce una percentuale significativa di coppie giovani senza figli, con possibili implicazioni sull'attrattività delle aree per questo segmento demografico e quindi lo spopolamento.
+
+# - P10 (Incidenza popolazione residente di 75 anni e più): 16.46%
+# Indica una percentuale significativa di anziani nella popolazione, con possibili impatti sull'assistenza e i servizi per gli anziani e sull'attrattività delle aree per le persone più giovani.
+
+# - P3 (Variazione intercensuaria popolazione con meno di 15 anni): 4.76%
+# Questo indica una variazione meno significativa nella popolazione giovanile, con possibili implicazioni sui servizi educativi e l'attrattività delle aree per le famiglie giovani.
+
+# - S6 (Rapporto disoccupazione italiana/straniera): 4.58%
+# Indica il rapporto tra la disoccupazione tra la popolazione italiana e quella straniera, con possibili implicazioni sull'integrazione socio-economica e lo spopolamento.
+
+
+
+# Random Forest (RF) PALERMO
+
+# Addestra il modello RF per i dati di Palermo utilizzando la cross-validation
+palermo_RF <- train(spopolato_palermo ~ .,
+                    data = training_palermo,  # Utilizza il set di addestramento per Palermo
+                    method = "rf",
+                    verbose = TRUE,  # Imposta verbose a TRUE per ottenere output dettagliato
+                    metric = "ROC",
+                    trControl = ctrl_palermo)
+
+# Calcola e stampa le metriche del modello RF per Palermo
+print("Risultati modello RF per Palermo:")
+compute_metrics_palermo(palermo_RF, testing_palermo)
+
+# Interpretazione dei Risultati del Modello RF per Palermo
+
+# Metriche di Valutazione
+
+# Accuratezza (Accuracy): 0.7857 (78.57%)
+# In questo caso, il modello ha un'accuratezza del 78.57%, il che significa che predice correttamente il 78.57% dei casi.
+
+# Sensibilità (Sensitivity): 1 (100%)
+# Con un valore di 1 (o 100%), il modello identifica tutti i casi di spopolamento, senza falsi negativi.
+
+# Specificità (Specificity): 0.25 (25.00%)
+# Con un valore del 25.00%, il modello ha difficoltà a distinguere correttamente i casi in cui non c'è spopolamento, mostrando un alto numero di falsi positivi.
+
+# F1 Score: 0.8696
+# Con un punteggio di 0.8696, il modello mostra un buon equilibrio tra la capacità di predire correttamente i veri casi di spopolamento e la precisione delle sue predizioni complessive.
+
+# Matrice di Confusione:
+# Il modello ha identificato correttamente 20 casi di "No Spopolamento" e 2 casi di "Sì Spopolamento", ma ha anche predetto erroneamente 6 casi di "No Spopolamento" e 0 casi di "Sì Spopolamento".
+
+
+# Le variabili più importanti identificate dal modello RF per la previsione del fenomeno di spopolamento a Palermo sono:
+
+# - P4 (Variazione intercensuaria popolazione con 15 anni ed oltre): 100.00%
+# Questo indica una variazione significativa nella popolazione adulta, correlata a fattori demografici come migrazione, natalità e mortalità, influenzando lo spopolamento.
+
+# - P2 (Variazione intercensuaria annua): 86.99%
+# Questo suggerisce una variazione annua significativa della popolazione, che può riflettere cambiamenti demografici o flussi migratori, influenzando lo spopolamento.
+
+# - P11 (Indice di dipendenza anziani): 74.10%
+# Indica un'alta dipendenza degli anziani nella popolazione, con implicazioni sull'assistenza e i servizi sociali, che possono influenzare lo spopolamento.
+
+# - A11 (Indice di espansione edilizia nei centri e nuclei abitati): 73.32%
+# Suggerisce una significativa espansione edilizia nelle aree urbane, con potenziali impatti sull'attrattività delle aree e lo spopolamento.
+
+# - P3 (Variazione intercensuaria popolazione con meno di 15 anni): 62.71%
+# Indica una variazione significativa nella popolazione giovanile, con possibili implicazioni sui servizi educativi e l'attrattività delle aree per le famiglie giovani.
+
+# - F7 (Incidenza di coppie giovani con figli): 59.59%
+# Suggerisce una percentuale significativa di coppie giovani con figli, con implicazioni sull'attrattività delle aree per le famiglie e lo spopolamento.
+
+# - P13 (Indice di vecchiaia): 55.77%
+# Indica una popolazione relativamente anziana, con possibili impatti sui servizi sanitari e sociali e sull'attrattività delle aree per le nuove generazioni.
+
+# - P10 (Incidenza popolazione residente di 75 anni e più): 42.96%
+# Suggerisce una presenza significativa di anziani, con implicazioni sull'assistenza e i servizi per gli anziani e sull'attrattività delle aree per le persone più giovani.
+
+# - M3 (Mobilità occupazionale): 41.10%
+# Indica un livello significativo di mobilità occupazionale, legato a opportunità economiche e condizioni di lavoro, che possono influenzare lo spopolamento.
+
+# - P8 (Rapporto di mascolinità): 40.40%
+# Suggerisce un rapporto tra maschi e femmine nella popolazione, con possibili implicazioni sulla struttura familiare e l'attrattività delle aree per determinati segmenti demografici.
+
+# Generalized Linear Model with Elastic Net Regularization (GLMNET) PALERMO
+
+seed = 123
+# Addestra il modello GLMNET per i dati di Palermo utilizzando la cross-validation
+palermo_GLMNET <- train(spopolato_palermo ~ .,
+                        data = training_palermo,  # Utilizza il set di addestramento per Palermo
+                        method = "glmnet",
+                        verbose = FALSE,
+                        metric = "ROC",
+                        seed = 123,
+                        trControl = ctrl_palermo)
+
+# Calcola e stampa le metriche del modello GLMNET per Palermo
+print("Risultati modello GLMNET per Palermo:")
+compute_metrics_palermo(palermo_GLMNET, testing_palermo)
+
+# Interpretazione dei risultati del Modello GLMNET per Palermo
+
+
+# Le metriche:
+# - Accuratezza (Accuracy): 0.8214
+#   Questa metrica indica la percentuale di previsioni corrette del modello, che è del 82.14%.
+
+# - Sensibilità (Sensitivity): 1
+#   La sensibilità rappresenta la capacità del modello di identificare correttamente i veri positivi, cioè i casi di spopolamento.
+#   Con un valore di 1, il modello ha identificato correttamente tutti i casi di spopolamento nel set di dati di test.
+
+# - Specificità (Specificity): 0.375
+#  Con un valore del 37.5%, il modello ha avuto difficoltà nel riconoscere correttamente i casi di non spopolamento, con un alto tasso di falsi positivi.
+
+# - F1 Score: 0.8889
+# Con un valore di 0.8889, il modello mostra un buon equilibrio tra la capacità di predire correttamente i veri casi di spopolamento e la precisione delle sue predizioni.
+
+# Matrice di Confusione:
+# mostra che su un totale di 25 casi, 20 sono stati correttamente identificati come "No Spopolamento" e 3 come "Sì Spopolamento".
+# Tuttavia, ci sono stati 5 casi identificati come "Sì Spopolamento" che in realtà non lo erano.
+
+# Le variabili più importanti identificate dal modello GLMNET per la previsione del fenomeno di spopolamento a Palermo sono:
+
+# - P2 (Variazione intercensuaria annua): 100%
+# Questo suggerisce che una variazione annua del 100% della popolazione potrebbe riflettere un cambiamento demografico significativo nel corso del tempo, influenzando lo spopolamento.
+
+# - P4 (Variazione intercensuaria popolazione con 15 anni ed oltre): 99.95%
+# Questo indica una variazione significativa nella popolazione adulta, correlata a fattori come migrazione, natalità e mortalità, influenzando lo spopolamento.
+
+# - A14 (Indice di affollamento delle abitazioni): 79%
+# Indica una percentuale significativa di abitazioni affollate, che potrebbero contribuire allo spopolamento.
+
+# - A9 (Incidenza edifici in pessimo stato di conservazione): 70%
+# Suggerisce la presenza di numerosi edifici in cattive condizioni, riducendo l'attrattività delle aree e portando allo spopolamento.
+
+# - A15 (Mobilità residenziale): 60%
+# Indica un'alta mobilità della popolazione, legata a flussi migratori che influenzano lo spopolamento.
+
+# - V9 (Incidenza delle famiglie in potenziale disagio di assistenza): 59%
+# Suggerisce una percentuale significativa di famiglie vulnerabili, influenzando l'attrattività delle aree e lo spopolamento.
+
+# - P3 (Variazione intercensuaria popolazione con meno di 15 anni): 57%
+# Indica un cambiamento significativo nella popolazione giovanile, influenzando lo spopolamento.
+
+# - A11 (Indice di espansione edilizia nei centri e nuclei abitati): 46%
+# Suggerisce un'espansione edilizia moderata, con implicazioni sull'attrattività delle aree e lo spopolamento.
+
+# - A6 (Età media del patrimonio abitativo recente): 35%
+# Indica un'età media relativamente bassa delle abitazioni recenti, influenzando l'attrattività delle aree per nuovi residenti.
+
+# - V5 (Incidenza delle famiglie numerose): 31%
+# Suggerisce una presenza significativa di famiglie numerose, influenzando la domanda di alloggi e l'attrattività delle aree per le famiglie.
+
+
+
+# Neural Network (NNET) PALERMO
+
+seed = 123
+# Addestra il modello NNET per i dati di Palermo utilizzando la cross-validation
+palermo_NNET <- train(spopolato_palermo ~ .,
+                      data = training_palermo,  # Utilizza il set di addestramento per Palermo
+                      method = "nnet",
+                      verbose = FALSE,
+                      metric = "ROC",
+                      seed = 123,
+                      trControl = ctrl_palermo)
+
+# Calcola e stampa le metriche del modello NNET per Palermo
+print("Risultati modello NNET per Palermo:")
+compute_metrics_palermo(palermo_NNET, testing_palermo)
+
+# Interpretazione dei risultati del Modello NNET per Palermo:
+
+# Le metriche calcolate sono:
+# - Accuratezza (Accuracy): 0.82
+#   Questa metrica indica la percentuale di previsioni corrette del modello, che è del 75%.
+
+# - Sensibilità (Sensitivity): 1
+#  Con un valore di 1, il modello ha identificato correttamente tutti i casi di spopolamento nel set di dati di test.
+
+# - Specificità (Specificity): 0.375
+#   Con un valore del 37.5% il modello ha avuto difficoltà nel riconoscere correttamente i casi di non spopolamento, con un alto tasso di falsi positivi.
+
+# - F1 Score: 0.88
+#   Con un valore di 0.8511, il modello mostra un buon equilibrio tra la capacità di predire correttamente i veri casi di spopolamento e la precisione delle sue predizioni.
+
+# Matrice di consfusione:
+# mostra che su un totale di 28 casi, 20 sono stati correttamente identificati come "No Spopolamento" e 1 come "Sì Spopolamento".
+# Tuttavia, ci sono stati 7 casi identificati come "Sì Spopolamento" che in realtà non lo erano.
+
+# Le variabili più importanti identificate dal modello NNET per la previsione del fenomeno di spopolamento a Palermo sono:
+
+# - Indice: S9 (Rapporto frequenza scolastica italiana/straniera): 100.00000%
+# Indica il rapporto tra la frequenza scolastica tra la popolazione italiana e quella straniera, con possibili implicazioni sull'integrazione socio-culturale e sullo spopolamento.
+
+# - Indice: M3 (Mobilità occupazionale): 65.54734%
+# Suggerisce un livello significativo di mobilità occupazionale nella popolazione, con possibili implicazioni sull'economia locale e sui flussi migratori.
+
+# - Indice: P13 (Indice di vecchiaia): 65.34893%
+# Indica un indice significativo di vecchiaia nella popolazione, con possibili implicazioni sui servizi per gli anziani e sull'attrattività delle aree per le persone più giovani.
+
+# - Indice: V2 (Posizione nella graduatoria dei comuni dell'indice di vulnerabilità): 61.03189%
+# Suggerisce una posizione significativa nella graduatoria dei comuni in base all'indice di vulnerabilità, con possibili implicazioni sulla resilienza socio-economica e sullo spopolamento.
+
+# - Indice: S10 (Rapporto lavoro indipendente italiano/straniero): 52.27681%
+# Indica il rapporto tra il lavoro indipendente tra la popolazione italiana e quella straniera, con possibili implicazioni sull'integrazione socio-economica e sulle opportunità lavorative locali.
+
+# - Indice: L13 (Indice di ricambio occupazionale): 48.83137%
+# Suggerisce un indice significativo di ricambio occupazionale nella popolazione, con possibili implicazioni sulla dinamica del mercato del lavoro e sullo spopolamento.
+
+# - Indice: P7 (Densità demografica): 45.23910%
+# Indica una densità demografica significativa, con possibili implicazioni sulla qualità della vita e sull'attrattività delle aree per la residenza.
+
+# - Indice: P6 (Incidenza della popolazione residente nei nuclei e case sparse): 34.91313%
+# Suggerisce un'incidenza significativa della popolazione residente nei nuclei e case sparse, con possibili implicazioni sull'organizzazione territoriale e sull'attrattività delle aree per la residenza.
+
+# - Indice: I2 (Adulti in apprendimento permanente): 33.55227%
+# Indica una percentuale significativa di adulti impegnati nell'apprendimento permanente, con possibili implicazioni sull'istruzione e sull'attrattività delle aree per le persone attive professionalmente.
+
+# - Indice: L9 (Tasso di disoccupazione giovanile): 33.16529%
+# Suggerisce un tasso significativo di disoccupazione giovanile, con possibili implicazioni sull'occupazione giovanile e sui flussi migratori.
+
+
+# Generalized Linear Model (GLM) PALERMO 
+
+# Addestra il modello GLM per i dati di Palermo utilizzando la cross-validation
+palermo_GLM <- train(spopolato_palermo ~ .,
+                     data = training_palermo,  # Utilizza il set di addestramento per Palermo
+                     method = "glm",  
+                     trControl = ctrl_palermo)
+
+# Calcola e stampa le metriche del modello GLM per Palermo
+print("Risultati modello GLM per Palermo:")
+compute_metrics_palermo(palermo_GLM, testing_palermo)
+
+# Interpretazione dei risultati del modello GLM per Palermo:
+
+# L'accuratezza del modello è del 54%, indicando che circa il 53.57% delle predizioni effettuate dal modello è corretto. 
+# Questo suggerisce che il modello ha una capacità di classificare correttamente gli esempi nel set di dati di test, sebbene ci sia spazio per miglioramenti.
+
+# La sensibilità del modello è del 65%, il che significa che il modello è in grado di individuare correttamente il 65% dei casi positivi presenti nel set di dati di test.
+# Questo indica che il modello ha una buona capacità di rilevare i casi positivi, ma potrebbe beneficiare di un'ulteriore ottimizzazione per aumentare questa metrica.
+
+# La specificità del modello è del 25%, indicando che il modello non è molto efficace nell'individuare correttamente i casi negativi.
+# Ciò potrebbe essere dovuto a una tendenza del modello a classificare erroneamente i casi negativi come positivi.
+
+# Il F1 Score del modello è del 66.67%. Questo punteggio tiene conto sia della precisione che della sensibilità del modello ed è utile per valutare le prestazioni complessive, specialmente in situazioni di sbilanciamento delle classi.
+# Indica che il modello ha un buon equilibrio tra precisione e sensibilità, ma ci sono ancora margini di miglioramento.
+
+# La matrice di confusione mostra che su un totale di 28 casi, il modello ha previsto correttamente 13 casi negativi e 2 casi positivi.
+# Tuttavia, ha anche previsto erroneamente 6 casi negativi come positivi e 7 casi positivi come negativi.
+# Questi risultati suggeriscono che il modello potrebbe beneficiare di una revisione e di un'ottimizzazione dei suoi parametri per migliorare le prestazioni di classificazione.
+
+# Le variabili più importanti identificate dal modello GLM per la previsione del fenomeno di spopolamento a Palermo sono:
+
+# - P6 (Incidenza della popolazione residente nei nuclei e case sparse): 100.00%
+# Questo indice indica l'incidenza della popolazione residente nei nuclei familiari e nelle case sparse, fornendo informazioni sulla densità abitativa e sulla distribuzione spaziale della popolazione.
+
+# - S9 (Rapporto frequenza scolastica italiana/straniera): 73.82%
+# Questo rapporto indica la frequenza scolastica tra la popolazione italiana e quella straniera, con possibili implicazioni sull'integrazione socio-culturale e sulla qualità dell'istruzione.
+
+# - P12 (Indice di dipendenza giovani): 67.45%
+# Questo indice indica il grado di dipendenza economica dei giovani, con possibili implicazioni sull'occupazione giovanile e sui flussi migratori.
+
+# - F7 (Incidenza di coppie giovani con figli): 60.25%
+# Questo indice indica la percentuale di coppie giovani con figli rispetto alla popolazione totale, con possibili implicazioni sulla domanda di alloggi familiari e servizi per l'infanzia.
+
+# - P13 (Indice di vecchiaia): 43.71%
+# Questo indice indica il grado di invecchiamento della popolazione, con possibili implicazioni sui servizi per gli anziani e sull'attrattività delle aree per le persone più giovani.
+
+# - P11 (Indice di dipendenza anziani): 41.40%
+# Questo indice indica il grado di dipendenza economica degli anziani, con possibili implicazioni sull'assistenza sanitaria e sui servizi per gli anziani.
+
+# - F10 (Incidenza di coppie anziane senza figli): 34.63%
+# Questo indice indica la percentuale di coppie anziane senza figli rispetto alla popolazione totale, con possibili implicazioni sull'offerta di servizi per gli anziani e sull'organizzazione sociale delle comunità.
+
+# - P10 (Incidenza popolazione residente di 75 anni e più): 32.09%
+# Questo indice indica la percentuale di persone anziane nella popolazione totale, con possibili implicazioni sull'assistenza sanitaria e sui servizi per gli anziani.
+
+# - F4 (Incidenza di giovani che vivono da soli): 31.06%
+# Questo indice indica la percentuale di giovani che vivono da soli rispetto alla popolazione totale, con possibili implicazioni sulla domanda abitativa e sui modelli di convivenza.
+
+# - F6 (Incidenza di coppie giovani senza figli): 29.16%
+# Questo indice indica la percentuale di coppie giovani senza figli rispetto alla popolazione totale, con possibili implicazioni sull'offerta di alloggi e sull'organizzazione delle famiglie.
+
+
+
+############################# Grafici Palermo #########################################
+
+# 1 - ROC CURVS per i 5 modelli - Palermo
+
+# Definisci le ROC CURVES
+roc_curve_gbm <- roc(testing_palermo$spopolato_palermo, predict(palermo_GBM, testing_palermo, type = "prob")[,2])
+roc_curve_rf <- roc(testing_palermo$spopolato_palermo, predict(palermo_RF, testing_palermo, type = "prob")[,2])
+roc_curve_glmnet <- roc(testing_palermo$spopolato_palermo, predict(palermo_GLMNET, testing_palermo, type = "prob")[,2])
+roc_curve_nnet <- roc(testing_palermo$spopolato_palermo, predict(palermo_NNET, testing_palermo, type = "prob")[,2])
+roc_curve_glm <- roc(testing_palermo$spopolato_palermo, predict(palermo_GLM, testing_palermo, type = "prob")[,2])
+
+# Calcola le AUC
+auc_gbm <- auc(roc_curve_gbm)
+auc_rf <- auc(roc_curve_rf)
+auc_glmnet <- auc(roc_curve_glmnet)
+auc_nnet <- auc(roc_curve_nnet)
+auc_glm <- auc(roc_curve_glm)
+
+# I risultati suggeriscono che i modelli GLMNET e RF sono i più efficaci nel prevedere il fenomeno dello spopolamento a Palermo, con AUC molto elevate, seguiti dal modello GBM. 
+# Il modello NNET, sebbene efficace, non raggiunge le stesse performance dei primi tre, mentre il modello GLM non è considerato utile per questo tipo di previsi.
+
+# Visualizza i Plots
+plot(roc_curve_gbm, col="blue", main="ROC Curves for Different Models - Palermo")
+plot(roc_curve_rf, col="red", add=TRUE)
+plot(roc_curve_glmnet, col="green", add=TRUE)
+plot(roc_curve_nnet, col="purple", add=TRUE)
+plot(roc_curve_glm, col="orange", add=TRUE)
+legend("bottomright", legend=c("GBM", "RF", "GLMNET", "NNET", "GLM"), col=c("blue", "red", "green", "purple", "orange"), lwd=2)
+
+# Visualizza le AUC
+print(paste("AUC for GBM: ", auc_gbm))
+print(paste("AUC for RF: ", auc_rf))
+print(paste("AUC for GLMNET: ", auc_glmnet))
+print(paste("AUC for NNET: ", auc_nnet))
+print(paste("AUC for GLM: ", auc_glm))
+
+# Il grafico ROC mostra le curve di cinque modelli diversi per valutare le loro performance. L'asse X rappresenta la specificità (Specificity) mentre l'asse Y rappresenta la sensibilità (Sensitivity). La linea diagonale rappresenta il comportamento di un classificatore casuale.
+
+# GLM: La curva del modello Generalized Linear Model (GLM) inizia con un andamento irregolare al di sotto della curva principale, suggerendo una performance variabile e meno accurata rispetto agli altri modelli.
+# NNET: La curva del modello Neural Network (NNET) mostra un inizio verticale seguito da un aumento irregolare verso destra, indicando una certa instabilità nelle performance del modello.
+# GMB e Random Forest: Le curve dei modelli Gradient Boosting Machine (GMB) e Random Forest salgono progressivamente come scale, indicando buone capacità discriminanti ma vengono in gran parte coperte dalla curva di GLMNET.
+# GLMNET: La curva del modello GLMNET forma quasi un angolo perfetto di 90 gradi, con solo una piccola irregolarità sull'estremo sinistro della curva. Questo suggerisce che il modello GLMNET ha prestazioni molto elevate, con una buona sensibilità e specificità in tutte le fasi della classificazione.
+
+
+
+# - Partial Plots per il modello GMB - Palermo
+
+# Trasformo la variabile dummy "spopolato_palermo" in formato numerico sottraendo 1.
+# Seleziono le variabili più importanti nel modello GBM per l'analisi.
+# Addestro un modello GBM utilizzando le variabili selezionate.
+
+# Trasforma la dummy spopolato_palermo in formato numerico
+data_palermo$spopolato_palermo_numeric <- as.numeric(data_palermo$spopolato_palermo) - 1
+
+# Seleziona le variabili in base all'importanza nel modello GBM
+selected_data_palermo <- data_palermo[, c("P4", "P2", "A11", "A9", "F7", "M2", "F6", "P10", "P3", "S6", "spopolato_palermo_numeric")]
+
+# Addestra il modello GBM
+GBM_model_selected <- gbm(spopolato_palermo_numeric ~ ., data = selected_data_palermo, distribution = "gaussian", n.trees = 100)
+
+# Crea i partial plots per le variabili selezionate utilizzando il modello GBM
+partial_plot_P4 <- plot.gbm(GBM_model_selected, i.var = "P4", n.trees = 100, return.grid = TRUE)
+partial_plot_P2 <- plot.gbm(GBM_model_selected, i.var = "P2", n.trees = 100, return.grid = TRUE)
+partial_plot_A11 <- plot.gbm(GBM_model_selected, i.var = "A11", n.trees = 100, return.grid = TRUE)
+partial_plot_A9 <- plot.gbm(GBM_model_selected, i.var = "A9", n.trees = 100, return.grid = TRUE)
+partial_plot_F7 <- plot.gbm(GBM_model_selected, i.var = "F7", n.trees = 100, return.grid = TRUE)
+partial_plot_M2 <- plot.gbm(GBM_model_selected, i.var = "M2", n.trees = 100, return.grid = TRUE)
+partial_plot_F6 <- plot.gbm(GBM_model_selected, i.var = "F6", n.trees = 100, return.grid = TRUE)
+partial_plot_P10 <- plot.gbm(GBM_model_selected, i.var = "P10", n.trees = 100, return.grid = TRUE)
+partial_plot_P3 <- plot.gbm(GBM_model_selected, i.var = "P3", n.trees = 100, return.grid = TRUE)
+partial_plot_S6 <- plot.gbm(GBM_model_selected, i.var = "S6", n.trees = 100, return.grid = TRUE)
+
+# Visualizza i partial plots utilizzando ggplot2
+ggplot(partial_plot_P4, aes(x = P4, y = y)) +
+  geom_path(color = "blue", size = 1.5) +
+  labs(title = "Partial Plot for P4 - GBM")
+
+# Variabile P4
+
+# La curva della variabile P4 parte piatta lungo l'asse delle X, fino a un valore di circa 0.7. Questo indica che inizialmente la variabile P4 
+# non ha un'influenza significativa sulla risposta del modello.
+# Successivamente, la curva sale fino a valori massimi sull'asse Y, indicando un aumento dell'influenza della variabile sul modello.
+# Successivamente, la curva si assesta orizzontalmente, indicando un'influenza 
+# positiva e stabile della variabile P4 sulla risposta del modello per valori elevati di X.
+
+
+# In sintesi, la variabile P4 ha un'influenza inizialmente nulla, che aumenta e passa attraverso una fase di fluttuazione, per poi diventare 
+# fortemente positiva e stabile per valori elevati di X.
+
+ggplot(partial_plot_P2, aes(x = P2, y = y)) +
+  geom_line(color = "red", size = 1.5) +
+  labs(title = "Partial Plot for P2 - GBM")
+
+# Variabile P2
+
+# La curva della variabile P2 parte orizzontalmente con valori bassi sull'asse Y (<0.20), suggerendo una iniziale influenza minima.
+# Poi, la curva sale verticalmente, appiattendosi tra i valori 0 e 0.5 dell'asse X, indicando un aumento significativo e costante 
+# dell'influenza della variabile sul modello in questo intervallo.
+# Successivamente, la curva risale verticalmente, formando uno scalino verso valori superiori a 0.30 sull'asse Y, indicando un aumento 
+# improvviso e significativo dell'influenza.
+# Infine, la curva continua a salire fino ai valori massimi del grafico, per poi formare una linea piatta orizzontale, suggerendo che la 
+# variabile P2 ha un'influenza positiva e stabile per valori molto elevati di X.
+
+# In sintesi, la variabile P2 mostra un comportamento inizialmente neutro, poi una aumento significativo e, infine, una stabilizzazione con un'influenza positiva per valori elevati di X.
+
+
+ggplot(partial_plot_A11, aes(x = A11, y = y)) +
+  geom_line(color = "green", size = 1.5) +
+  labs(title = "Partial Plot for A11 - GBM")
+
+# Variabile A11
+
+# La curva della variabile A11 parte da valori bassi sull'asse Y, collocandosi immediatamente sui valori minimi dell'asse X. Questo indica 
+# un'influenza inizialmente bassa della variabile sulla risposta del modello.
+# La curva poi risale, inizialmente verticalmente, ma dai valori di 0.35 sull'asse Y presenta un piccolo assestamento.
+# Successivamente, la curva risale in modo frastagliato fino ai valori massimi, indicando un'influenza crescente e variabile.
+# Infine, la curva diventa piatta e orizzontale, suggerendo un'influenza stabile per valori elevati di X.
+
+# In sintesi, la variabile A11 mostra un'influenza inizialmente bassa che aumenta in modo variabile, per poi stabilizzarsi a un livello alto 
+# per valori elevati di X.
+
+ggplot(partial_plot_A9, aes(x = A9, y = y)) +
+  geom_line(color = "orange", size = 1.5) +
+  labs(title = "Partial Plot for A9 - GBM")
+
+# Variabile A9
+
+# La curva della variabile A9 inizia con valori che sembrano un elettrocardiogramma (ECG), indicando fluttuazioni iniziali rapide e 
+# variabili nell'influenza della variabile sul modello.
+# Successivamente, la curva sale verticalmente fino a raggiungere i valori massimi del grafico, indicando un aumento significativo 
+# dell'influenza della variabile.
+# La curva prosegue quindi orizzontalmente, con un solo scalino attorno al valore < 0.25 sull'asse Y, suggerendo una fase di stabilità con 
+# un'influenza costante e alta.
+
+# In sintesi, la variabile A9 mostra fluttuazioni iniziali seguite da un aumento significativo e un'influenza stabile con un piccolo 
+# assestamento per valori elevati di X.
+
+ggplot(partial_plot_F7, aes(x = F7, y = y)) +
+  geom_line(color = "purple", size = 1.5) +
+  labs(title = "Partial Plot for F7 - GBM")
+# Variabile F7
+
+# La curva della variabile F7 parte orizzontalmente e piatta a valori abbastanza alti sull'asse Y (0.23), indicando un'influenza iniziale 
+# moderata e costante.
+# All'altezza del valore 11 sull'asse X, la curva scende fino ai valori minimi del grafico, formando una forma ad imbuto fino al valore 12 
+# sull'asse X, suggerendo un'influenza negativa molto elevata e stabile in questo intervallo.
+# Poi, la curva sale a picco, toccando il valore massimo del grafico, indicando una forte influenza positive...
+# Infine, la curva continua orizzontalmente con una curva piatta, suggerendo una stabilizzazione dell'influenza della variabile.
+
+
+ggplot(partial_plot_M2, aes(x = M2, y = y)) +
+  geom_line(color = "pink", size = 1.5) +
+  labs(title = "Partial Plot for M2 - GBM")
+
+# Variabile M2
+# La curva della variabile M2 parte piatta per valori bassi dell'asse Y, raggiungendo il minimo intorno al valore 20 dell'asse X,
+# formando deegli scalini, presentando forti irregolarità.
+# Poi, la curva sale quasi omogeneamente in modo verticale fino ai valori massimi del grafico, suggerendo un aumento significativo 
+# dell'influenza della variabile.
+# La curva continua orizzontalmente dal valore di circa 03 sull'asse X fino alla fine, indicando una stabilizzazione dell'influenza positiva 
+# per valori elevati di X.
+
+
+# In sintesi, la variabile M2 mostra un'influenza inizialmente minima, che aumenta costantemente e poi si stabilizza a un livello alto per 
+# valori elevati di X.
+ggplot(partial_plot_F6, aes(x = F6, y = y)) +
+  geom_line(color = "cyan", size = 1.5) +
+  labs(title = "Partial Plot for F6 - GBM")
+
+# Variabile F6
+
+# La curva della variabile F6 parte piatta e orizzontale per valori alti dell'asse Y, formando degli scalini dal valore 3 dell'asse X 
+# fino al valore di 3.5 sull'asse X e circa 0.28 sull'asse Y. Questo suggerisce un'influenza inizialmente alta e variabile.
+# Poi, la curva scende verticalmente fino a toccare l'asse X, indicando una riduzione significativa dell'influenza della variabile.
+# Successivamente, la curva prosegue verso destra in modo orizzontale e piatto, suggerendo una stabilizzazione dell'influenza minima.
+
+# In sintesi, la variabile F6 mostra un'influenza inizialmente alta e variabile, che diminuisce drasticamente e si stabilizza a un livello 
+# minimo per valori elevati di X.
+ggplot(partial_plot_P10, aes(x = P10, y = y)) +
+  geom_line(color = "brown", size = 1.5) +
+  labs(title = "Partial Plot for P10 - GBM")
+
+# La curva della variabile P10 parte piatta per valori alti dell'asse Y e, in corrispondenza del valore 8 dell'asse X, inizia a scendere, 
+# dapprima quasi verticalmente fino al valore di 0.25 sull'asse Y.
+# Poi, la curva inizia a presentare delle irregolarità e un andamento orizzontale minimo, superando il valore 10 sull'asse X e scendendo 
+# ancora verticalmente fino al valore 12 sull'asse X.
+# Proseguendo orizzontalmente e 
+# piatta fino alla fine.
+
+# In sintesi, la variabile P10 mostra un'influenza inizialmente alta, che diminuisce rapidamente con irregolarità e poi si stabilizza a un 
+# livello minimo per valori elevati di X.
+
+
+ggplot(partial_plot_P3, aes(x = P3, y = y)) +
+  geom_line(color = "black", size = 1.5) +
+  labs(title = "Partial Plot for P3 - GBM")
+
+# Variabile P3
+
+# La curva della variabile P3 parte piatta su valori bassi dell'asse Y (minori di 0.2) fino ad arrivare ai valori tra -2 e 0 dell'asse X,
+# dove scende fino a toccare l'asse X, indicando un'influenza inizialmente minima.
+# Poi, la curva riprende a salire quasi del tutto verticalmente, presentando delle irregolarità sparse sulla bassa e media,
+# dove continua verticalmente fino ai valori massimi dell'asse Y (corrispondenti a 0 sull'asse X) e poi prosegue piatta ed orizzontale.
+
+# In sintesi, la variabile P3 mostra un'influenza inizialmente minima, che aumenta significativamente fino a raggiungere un livello alto e 
+# poi si stabilizza per valori elevati di X.
+ggplot(partial_plot_S6, aes(x = S6, y = y)) +
+  geom_line(color = "yellow", size = 1.5) +
+  labs(title = "Partial Plot for S6 - GBM")
+
+# Variabile S6:
+
+# La curva della variabile S6 parte da un valore di 0.25 sull'asse Y, indicando un'influenza inizialmente positiva sulla risposta del modello.
+# Quasi subito, la curva mostra un picco verso i valori massimi, suggerendo un aumento significativo dell'influenza della variabile S6 sul modello per i valori iniziali di X.
+# Tuttavia, dopo questo picco, la curva torna a 0.25 con un andamento misto e disturbato, indicando una fase di instabilità e variabilità nell'effetto della variabile sulla risposta del modello.
+# Successivamente, la curva presenta un picco assoluto verso il basso, toccando l'asse delle X per valori superiori a 100. Questo picco negativo indica che, in questo intervallo, la variabile S6 ha un'influenza fortemente negativa sulla risposta del modello.
+# Infine, la curva risale a 0.15 sull'asse Y e continua in modo orizzontale e piatto, suggerendo che per valori elevati di X, l'influenza della variabile S6 diventa costante e leggermente positiva.
+
+# In sintesi, il partial plot della variabile S6 evidenzia un comportamento complesso con un'iniziale forte influenza positiva, seguita da un'instabilità, un significativo effetto negativo per valori intermedi di X, e infine una stabilizzazione con un'influenza leggermente positiva per valori molto elevati di X. Questo indica che l'effetto della variabile S6 sulla risposta del modello varia considerevolmente a seconda del valore di X, passando attraverso diverse fasi di influenza.
+
+
+
+# 3 - Partial Plots per il modello RF - Palermo
+
+# Seleziono le variabili più importanti nel modello GBM per l'analisi.
+# Addestro un modello RF utilizzando le variabili selezionate e la dummy numerica
+
+# Seleziona le variabili in base all'importanza nel modello GBM
+selected_data_palermo <- data_palermo[, c("P4", "P2", "P11", "A11", "P3", "F7", "P13", "P10", "M3", "P8", "spopolato_palermo_numeric")]
+
+# Addestra il modello RF
+RF_model_selected <- randomForest(spopolato_palermo_numeric ~ ., data = selected_data_palermo)
+
+# Crea i partial plots per le variabili selezionate utilizzando il modello RF
+partial_plot_P4_rf <- partial(RF_model_selected, pred.var = "P4", grid.resolution = 50)
+partial_plot_P2_rf <- partial(RF_model_selected, pred.var = "P2", grid.resolution = 50)
+partial_plot_P11_rf <- partial(RF_model_selected, pred.var = "P11", grid.resolution = 50)
+partial_plot_A11_rf <- partial(RF_model_selected, pred.var = "A11", grid.resolution = 50)
+partial_plot_P3_rf <- partial(RF_model_selected, pred.var = "P3", grid.resolution = 50)
+partial_plot_F7_rf <- partial(RF_model_selected, pred.var = "F7", grid.resolution = 50)
+partial_plot_P13_rf <- partial(RF_model_selected, pred.var = "P13", grid.resolution = 50)
+partial_plot_P10_rf <- partial(RF_model_selected, pred.var = "P10", grid.resolution = 50)
+partial_plot_M3_rf <- partial(RF_model_selected, pred.var = "M3", grid.resolution = 50)
+partial_plot_P8_rf <- partial(RF_model_selected, pred.var = "P8", grid.resolution = 50)
+
+# Visualizza i partial plots utilizzando ggplot2
+ggplot(partial_plot_P4_rf, aes(x = P4, y = yhat)) +
+  geom_line(color = "blue", size = 1.5) +
+  labs(title = "Partial Plot for P4 - RF")
+
+# Variabile P4
+
+# La curva della variabile P4 parte piatta per valori minimi di Y e X, con un andamento orizzontale ma irregolare. 
+# Questo indica che inizialmente la variabile P4 non ha un'influenza significativa sulla risposta del modello.
+# Al valore 0 dell'asse X, la curva inizia a salire, suggerendo un aumento dell'influenza della variabile P4.
+# La curva presenta due particolari assestamenti: uno scalino intorno al valore 0.20 sull'asse Y e una punta per valori alti 
+# (maggiori di 0.30 sull'asse Y). Questi assestamenti indicano variazioni significative nell'influenza della variabile in questi intervalli.
+# Dopo una leggera concavità, la curva sale nuovamente fino ai valori massimi e poi si stabilizza, diventando piatta e orizzontale.
+# Questo comportamento complessivo suggerisce che P4 ha un'influenza crescente e variabile sulla risposta del modello, con un assestamento 
+# e stabilizzazione per valori elevati di X.
+
+ggplot(partial_plot_P2_rf, aes(x = P2, y = yhat)) +
+  geom_line(color = "red", size = 1.5) +
+  labs(title = "Partial Plot for P2 - RF")
+
+# Variabile P2
+
+# La curva della variabile P2 mostra un andamento positivo, con una salita irregolare e aree estreme più piatte.
+# Questo comportamento indica che P2 ha un'influenza complessivamente positiva sul modello, ma con variazioni irregolari.
+# Le zone più piatte suggeriscono che, in certi intervalli, l'influenza della variabile si stabilizza.
+
+# In sintesi, P2 contribuisce positivamente alla risposta del modello, con un'influenza che varia irregolarmente e si stabilizza 
+# a livelli estremi di X.
+
+ggplot(partial_plot_P11_rf, aes(x = P11, y = yhat)) +
+  geom_line(color = "green", size = 1.5) +
+  labs(title = "Partial Plot for P11 - RF")
+
+# Variabile P11
+
+# La curva della variabile P11 parte dal valore 0.23 sull'asse Y e sale fino al valore 0.30, dove presenta delle grandi irregolarità,
+# salendo e scendendo, formando delle punte. Questo comportamento indica un'influenza variabile e instabile della variabile P11 su 
+# questo intervallo.
+# Successivamente, la curva scende dal valore 0.23 sull'asse Y (a circa 30 sull'asse X) quasi fino a toccare i valori minimi del grafico.
+# Questa discesa mostra una riduzione significativa dell'influenza della variabile.
+# La curva risale leggermente formando una punta, poi scende nuovamente fino a toccare l'asse X e prosegue orizzontalmente e piatta 
+# fino alla fine.
+# In sintesi, la variabile P11 mostra un'influenza inizialmente irregolare e variabile, seguita da una riduzione significativa e 
+# una stabilizzazione su valori minimi.
+
+ggplot(partial_plot_A11_rf, aes(x = A11, y = yhat)) +
+  geom_line(color = "orange", size = 1.5) +
+  labs(title = "Partial Plot for A11 - RF")
+
+# Variabile A11
+
+# La curva della variabile A11 presenta subito una punta per valori medio-bassi di Y (0.22), poi scende a picco toccando l'asse X.
+# Questa discesa indica una riduzione iniziale significativa dell'influenza della variabile.
+# La curva prosegue orizzontalmente per i valori compresi tra 0 e 5 sull'asse X, suggerendo un'influenza minima in questo intervallo.
+# Risale nuovamente a 0.22 sull'asse Y, indicando un aumento dell'influenza. 
+# La salita continua in modo irregolare fino ai valori massimi dell'asse Y, oltre i 18 dell'asse X, dove la curva diventa piatta.
+# Questo comportamento mostra che A11 ha un'influenza inizialmente ridotta, che aumenta con irregolarità fino a stabilizzarsi a livelli 
+# elevati di X.
+
+ggplot(partial_plot_P3_rf, aes(x = P3, y = yhat)) +
+  geom_line(color = "purple", size = 1.5) +
+  labs(title = "Partial Plot for P3 - RF")
+
+# Variabile P3
+
+# La curva della variabile P3 parte piatta sull'asse X, con una piccola punta oltre il valore -0.2 sull'asse X.
+# Questo indica un'influenza inizialmente minima. 
+# La curva poi sale quasi verticalmente dal valore 0.3 sull'asse X, fino a toccare i valori estremi del grafico, suggerendo un rapido aumento 
+# dell'influenza della variabile.
+# Dopo aver formato una punta, la curva scende di poco e prosegue con un andamento orizzontale ma frastagliato.
+# Questo comportamento mostra che P3 ha un'influenza inizialmente minima, che aumenta rapidamente e poi si stabilizza con una certa 
+# variabilità per valori elevati di X.
+
+ggplot(partial_plot_F7_rf, aes(x = F7, y = yhat)) +
+  geom_line(color = "pink", size = 1.5) +
+  labs(title = "Partial Plot for F7 - RF")
+
+# Variabile F7
+
+# La curva della variabile F7 parte piatta sull'asse X e, intorno al valore 9 sull'asse X, inizia a salire lentamente e in modo irregolare.
+# Questo indica che l'influenza iniziale della variabile è minima.
+# Oltre il valore 12 sull'asse X, la curva sale più verticalmente per un breve intervallo, indicando un aumento più significativo 
+# dell'influenza. Tuttavia, questo aumento è seguito da una ripresa della salita lenta e irregolare.
+# La curva raggiunge i valori massimi del grafico e poi prosegue orizzontalmente in modo irregolare.
+# Questo comportamento complessivo suggerisce che F7 ha un'influenza che aumenta lentamente e irregolarmente, con un breve intervallo 
+# di aumento significativo, per poi stabilizzarsi a un livello elevato e variabile, per riprendere a scendere rimanendo su livelli alti della variabile y.
+
+ggplot(partial_plot_P13_rf, aes(x = P13, y = yhat)) +
+  geom_line(color = "cyan", size = 1.5) +
+  labs(title = "Partial Plot for P13 - RF")
+
+# Variabile P13
+
+# La curva della variabile P13 parte da valori medio-bassi dell'asse Y e sale a picco fin da subito, raggiungendo quasi i valori massimi 
+# del grafico (intorno a 0.24 sull'asse Y e 100 sull'asse X), formando una punta. Questo indica un'influenza rapidamente crescente della 
+# variabile P13.
+# La curva riprende subito a scendere fino al valore originale, formando una piccola concavità e convessità, per poi scendere nuovamente 
+# fino ai valori minimi del grafico e proseguire orizzontalmente sull'asse X.
+# In sintesi, la variabile P13 mostra un'influenza rapidamente crescente, seguita da una riduzione altrettanto rapida e una stabilizzazione 
+# su valori minimi.
+
+ggplot(partial_plot_P10_rf, aes(x = P10, y = yhat)) +
+  geom_line(color = "yellow", size = 1.5) +
+  labs(title = "Partial Plot for P10 - RF")
+
+# Variabile P10
+
+# La curva della variabile P10 parte da valori alti del grafico con un andamento irregolare e inizia a scendere, assestandosi intorno 
+# al valore 10 dell'asse X e circa 0.26 sull'asse Y. Questa discesa indica una riduzione dell'influenza della variabile P10.
+# La curva poi riprende a scendere fino ai valori minimi del grafico, proseguendo orizzontalmente sull'asse X.
+# In sintesi, la variabile P10 mostra un'influenza inizialmente alta che diminuisce gradualmente, stabilizzandosi su valori minimi.
+
+ggplot(partial_plot_M3_rf, aes(x = M3, y = yhat)) +
+  geom_line(color = "brown", size = 1.5) +
+  labs(title = "Partial Plot for M3 - RF")
+
+# Variabile M3
+
+# La curva della variabile M3 parte dalla zona alta del grafico e scende a picco fino a toccare l'asse X, proseguendo orizzontalmente 
+# fino al valore 100 sull'asse X. Questo comportamento indica una riduzione rapida e significativa dell'influenza della variabile M3.
+# La curva risale in modo morbido, mantenendosi su valori bassi dell'asse Y, e prosegue orizzontalmente con un andamento ondulatorio, 
+# mai diritto.
+# In sintesi, la variabile M3 mostra un'influenza inizialmente alta che diminuisce rapidamente, seguita da una leggera risalita e un 
+# andamento ondulatorio stabile su valori bassi.
+
+
+ggplot(partial_plot_P8_rf, aes(x = P8, y = yhat)) +
+  geom_line(color = "magenta", size = 1.5) +
+  labs(title = "Partial Plot for P8 - RF")
+
+# Variabile P8
+
+# La curva della variabile P8 parte piatta sull'asse X e prosegue orizzontalmente fino a valori intorno a 95 sull'asse X, quando 
+# inizia a salire in modo irregolare.
+# Al valore 97 sull'asse X, la salita diventa verticale, formando una punta su valori superiori a 0.24 sull'asse Y. Questo indica 
+# un'influenza crescente e significativa della variabile P8.
+# La curva continua a salire diagonalmente ma con un andamento irregolare fino alla punta estrema in alto a destra del grafico.
+# In sintesi, la variabile P8 mostra un'influenza inizialmente minima che aumenta rapidamente e significativamente, mantenendo un 
+# andamento irregolare fino ai valori massimi del grafico.
+
+
+
+# 4 - coefficient e Cross-Validation Plots per il modello GLMNET - Palermo
+
+# Seleziona le variabili più importanti
+selected_data_palermo <- data_palermo[, c("P2", "P4", "A14", "A9", "A15", "V9", "P3", "A11", "A6", "V5", "spopolato_palermo")]
+
+# Prepara i dati per GLMNet
+x <- as.matrix(selected_data_palermo[, -ncol(selected_data_palermo)])
+y <- selected_data_palermo$spopolato_palermo
+
+# Crea il modello GLMNet
+glmnet_model <- glmnet(x, y, family = "binomial")
+
+# Plot dei coefficienti rispetto a lambda
+plot(glmnet_model, xvar = "lambda", label = TRUE)
+title("Coefficient Plot - GLMNet", line = 3)  # Imposta line su 3 per spostare il titolo più in alto
+
+# Coefficient Plot del modello GLMNET
+
+# L'asse X rappresenta log(lambda) con valori che vanno da -10 a -2.
+# L'asse Y rappresenta i coefficienti delle variabili con valori che vanno da -4 a +4.
+# Le diverse curve sottili e colorate indicano i coefficienti delle variabili.
+# Queste curve partono da vari punti dell'asse Y, inclusi valori alti, bassi e intermedi.
+# Quando log(lambda) è intorno a -10, le curve sono più disperse, indicando che i coefficienti delle variabili hanno valori maggiori e variabili.
+# Con il diminuire di log(lambda) (verso -2), le curve si avvicinano progressivamente allo zero, suggerendo che i coefficienti si riducono e si stabilizzano.
+# Questo comportamento è atteso poiché un lambda più grande impone una regolarizzazione maggiore, riducendo i coefficienti verso zero.
+
+# Cross-validation per scegliere il miglior lambda
+cv_model <- cv.glmnet(x, y, family = "binomial")
+plot(cv_model)
+title("Cross-Validation Plot - GLMNet", line = 3)  # Imposta line su 3 per spostare il titolo più in alto
+
+# Cross-Validation Plot del modello GLMNET
+
+# L'asse Y rappresenta la binomial deviance con valori che vanno da 0.5 a 3.5.
+# L'asse X rappresenta log(lambda) con valori che vanno da -10 a -2.
+# I puntini rossi rappresentano i risultati della cross-validation.
+# Dai valori alti di binomial deviance (circa 2.5) sul lato sinistro del grafico, i puntini iniziano a scendere in modo omogeneo.
+# Questa discesa continua fino ai valori minimi della binomial deviance, intorno a log(lambda) = -6.
+# Dopo questo punto, i puntini riprendono a salire leggermente formando una curva verso l'alto fino a log(lambda) = -2.
+# Questo andamento suggerisce che esista un valore ottimale di log(lambda) vicino a -6 dove la binomial deviance è minima.
+# Il minimo della binomial deviance rappresenta il miglior trade-off tra bias e varianza per il modello, indicando la scelta ottimale di lambda.
+
+
+
+# 5 - Rete Neurale per il modello NNET - Palermo
+
+# Seleziona le variabili più importanti dal dataframe data_palermo
+selected_data_palermo_nnet <- data_palermo[, c("S9", "M3", "P13", "V2", "S10", "L13", "P7", "P6", "I2", "L9", "spopolato_palermo")]
+
+# Prepara i dati per il modello NNet
+x_nnet <- selected_data_palermo_nnet[, -ncol(selected_data_palermo_nnet)]
+y_nnet <- selected_data_palermo_nnet$spopolato_palermo
+
+# Crea il modello NNet con neuralnet
+nnet_model_nnet <- neuralnet(y_nnet ~ ., data = x_nnet, hidden = 5, linear.output = TRUE)
+
+# Plot della rete neurale
+plotnet(nnet_model_nnet)
+
+# Aggiungi un titolo al grafico
+title(main = "Rete Neurale per il Modello di Spopolamento di Palermo")
+
+# Dal grafico della rete neurale si possono estrarre informazioni preziose sulla sua struttura e sul ruolo delle variabili di input.
+# Le variabili elencate a sinistra, come S9, M3,P13, ecc., sono considerate le 10 variabili più importanti per il modello.
+# Le frecce che partono dai pallini azzurri (variabili di input) e si dirigono verso i nodi H1-H5 (livello nascosto) indicano le connessioni tra le variabili di input e i nodi nascosti della rete neurale.
+# Le frecce che collegano i nodi nascosti (H1-H5) ai nodi di output (O1, O2) indicano come le informazioni elaborate nei nodi nascosti influenzino le predizioni finali della rete neurale.
+# Le frecce aggiuntive che collegano i nodi di output (O1, O2) ai nodi B2 e le frecce che collegano i nodi nascosti (H1-H5) al nodo B1 rappresentano connessioni aggiuntive all'interno della rete neurale.
+# In sintesi, il grafico fornisce una rappresentazione visiva della struttura della rete neurale e delle connessioni tra le variabili di input, i nodi nascosti e i nodi di output. 
+# Le variabili elencate sono considerate importanti per il modello e le connessioni mostrano come queste variabili influenzino le predizioni finali della rete neurale per lo spopolamento su Palermo.
+
+
+# 6 - Plot sull'importanza delle prime dieci variabili per il modello GLM - Palermo
+
+# Ottieni i coefficienti stimati del modello (escludendo l'intercetta)
+coefficients <- coef(palermo_GLM$finalModel)[-1]
+
+# Seleziona le prime dieci variabili importanti (escludendo l'intercetta)
+top_ten_importance <- head(sort(abs(coefficients), decreasing = TRUE), 10)
+
+# Seleziona i nomi delle variabili corrispondenti alle prime dieci importanze
+top_ten_variables <- names(top_ten_importance)
+
+# Crea un dataframe con i nomi delle variabili e le loro importanze
+importance_df <- data.frame(Variable = top_ten_variables, Importance = top_ten_importance)
+
+# Grafico delle importanze delle variabili
+ggplot(importance_df, aes(x = reorder(Variable, Importance), y = Importance, fill = Importance)) +
+  geom_bar(stat = "identity") +
+  scale_fill_gradient(low = "blue", high = "red") +  # Scala di colori da blu a rosso in base all'importanza
+  labs(title = "Importanza delle prime dieci variabili - GLM",
+       x = "Variabile",
+       y = "Importanza",
+       fill = "Importanza") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Commento sulla discrepanza tra le variabili più importanti nel modello GLM e quelle visualizzate sul grafico
+
+# Anche in questo caso, il grafico delle 10 variabili più importanti sullo spopolamento per il modello GLM mostra una serie di variabili che potrebbero essere considerate cruciali per il processo decisionale del modello. Tuttavia, è importante notare che le variabili visualizzate sul grafico potrebbero non corrispondere esattamente alle variabili più rilevanti identificate nel modello GLM stesso.
+# Le discrepanze tra le variabili visualizzate sul grafico e quelle effettivamente rilevanti nel modello GLM potrebbero derivare da diversi fattori. Ad esempio, il grafico potrebbe contenere tecniche di riduzione della dimensionalità. Inoltre, potrebbero essere presenti interazioni complesse o relazioni non lineari tra le variabili nel modello GLM che non sono immediatamente evidenti nel grafico delle variabili più importanti.
+# Pertanto, in questo contesto, si farà riferimento direttamente al modello GLM per identificare le variabili più importanti e basare le decisioni di modellazione su tali risultati. 
+
+
+
+
+######################### CONCLUSIONI ##################################
+
+# Lo spopolamento è un fenomeno complesso e multifattoriale che si verifica quando una determinata area perde popolazione nel corso del tempo, con conseguenti impatti socio-economici e urbanistici significativi. 
+# Questo studio si è sviluppato sull'analisi dello spopolamento nelle città di Milano e Palermo, due realtà urbane geograficamente, economicamente e culturalmente contrapposte, caratterizzate da contesti socio-economici nettamente distinti. 
+# Attraverso l'impiego di modelli predittivi e l'analisi delle variabili più significative, si è cercato di comprendere i fattori chiave che contribuiscono al declino demografico in queste aree. 
+# Tale comprensione è fondamentale per orientare i policy maker nella formulazione di interventi mirati e strategie di sviluppo volte a contrastare lo spopolamento e promuovere la sostenibilità delle comunità urbane.
+
+
+# Nel caso di Milano, l’analisi dei dati ha rivelato che, con un'accuratezza del 93.10% e una specificità del 100%, il modello Random Forest offre prestazioni superiori nel prevedere il declino demografico nella città.
+
+# Per Milano, l'analisi dei dati ha evidenziato una serie di dieci variabili significative che influenzano lo spopolamento. Queste includono:
+# • Incidenza di giovani che vivono da soli
+# • Mobilità breve
+# • Incidenza di famiglie monogenitoriali anziane
+# • Incidenza di minori stranieri
+# • Incidenza dell'occupazione nel settore terziario extracommercio
+# • Tasso di occupazione femminile
+# • Partecipazione al mercato del lavoro femminile
+# • Mobilità residenziale
+# • Mobilità pubblica (uso mezzo pubblico)
+# • Incidenza dell'occupazione in professioni artigiane, operaie o agricole.
+
+# Per contrastare lo spopolamento a Milano, i policy maker potrebbero considerare una serie di interventi mirati. Questi potrebbero includere politiche abitative per i giovani, miglioramenti infrastrutturali per promuovere la mobilità sostenibile, programmi di sostegno per le famiglie anziane e migranti, iniziative per aumentare la partecipazione femminile al mercato del lavoro e misure per favorire la diversificazione economica.
+
+# D'altra parte, Palermo, con la sua ricca storia culturale e geografica, affronta sfide uniche legate allo spopolamento. Il modello migliore per prevedere il declino demografico a Palermo sembra essere il Gradient Boosting Machine (GBM), con un'accuratezza dell'82.14% e una sensibilità del 100%,
+# seppur abbiano mostrato non un’accurata specificità nel predire gli errori. 
+# In questo caso, le dieci variabili più rilevanti che influenzano lo spopolamento sono:
+
+# • Variazione intercensuaria popolazione con 15 anni ed oltre
+# • Variazione intercensuaria annua
+# • Indice di espansione edilizia nei centri e nuclei abitati
+# • Incidenza edifici in pessimo stato di conservazione
+# • Incidenza di coppie giovani con figli
+# • Mobilità fuori comune per studio o lavoro
+# • Incidenza di coppie giovani senza figli
+# • Incidenza popolazione residente di 75 anni e più
+# • Variazione intercensuaria popolazione con meno di 15 anni
+# • Rapporto disoccupazione italiana/straniera
+
+# Questi fattori riflettono le sfide demografiche, urbane ed economiche specifiche della città.
+# Per contrastare lo spopolamento a Palermo, i policy maker potrebbero considerare interventi volti a promuovere la riqualificazione urbana, investimenti nell'edilizia residenziale e nella creazione di opportunità occupazionali, politiche per favorire l'integrazione socio-economica degli immigrati, e iniziative per migliorare la qualità della vita delle famiglie e degli anziani residenti.
+
+
+
+```
+
+
+
