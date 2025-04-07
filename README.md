@@ -21,7 +21,13 @@ The goal of this portfolio is to showcase a variety of applied data science tech
 
 ---
 
-© 2025 Renata Guarino - All rights reserved.
+📄 License and Copyright
+
+© 2025 Renata Guarino – All rights reserved.
+
+All contents in this repository (code, visuals, text) are the intellectual property of the author.  
+Copying, reproducing, modifying, or redistributing any part of this material is not allowed without explicit written permission.
+
 
 
 ---
