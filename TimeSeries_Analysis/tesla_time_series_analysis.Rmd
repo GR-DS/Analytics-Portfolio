@@ -1,5 +1,5 @@
 ---
-title: "Verifica Deep Learning On Tempora Data"
+title: "Deep Learning On Tempora Data su Titoli Tesla"
 author: "Guarino Renata"
 date: "2024-06-29"
 output:
