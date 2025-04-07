@@ -1,4 +1,3 @@
-markdown
 ---
 title: "GR – Data Science Portfolio"
 ---
