@@ -1,6 +1,4 @@
----
-
-```markdown
+markdown
 ---
 title: "GR – Data Science Portfolio"
 ---
@@ -29,4 +27,12 @@ Ogni progetto è documentato nel mio repository GitHub con notebook o Rmd, codic
 📧 [guarino.renata@blu.it]  
 🔗 [LinkedIn](https://www.linkedin.com/in/renatag87/)  
 🌐 GitHub: [GR-DS](https://github.com/GR-DS)
-```
+
+---
+
+© 2025 Renata Guarino – Tutti i diritti riservati.  
+Questo portfolio, inclusi i codici, i testi e le visualizzazioni, è opera originale dell'autrice.  
+Non è consentito copiare, riprodurre o distribuire i contenuti senza autorizzazione esplicita.
+
+---
+
