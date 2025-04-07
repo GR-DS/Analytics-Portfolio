@@ -1,5 +1,5 @@
 ---
-title: "Identificazione di Banconote False tramite Clustering"
+title: "Banconote Reali o False? Un’Analisi con Clustering"
 author: "Guarino Renata"
 date: "2024-04-10"
 output: 
@@ -7,7 +7,7 @@ output:
     fig_caption: yes
 ---
 
-
+# Identificazione di Banconote False tramite Clustering
 
 ```{r include_file, echo=TRUE}
 
