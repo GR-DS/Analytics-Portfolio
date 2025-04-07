@@ -1,5 +1,5 @@
 ---
-"GR – Data Science Portfolio"
+title: "GR – Data Science Portfolio"
 ---
 
 👩‍💻 Ciao! Sono Guarino Renata, Junior Data Scientist
