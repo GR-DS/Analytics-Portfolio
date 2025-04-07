@@ -1,5 +1,5 @@
 ---
-title: "Analisi delle Caratteristiche delle Banconote"
+title: "Identificazione di Banconote False tramite Clustering"
 author: "Guarino Renata"
 date: "2024-04-10"
 output: 
@@ -8,7 +8,6 @@ output:
 ---
 
 
-![](D:/Disco D/Master AI e DataScience/Verifiche/Ingrassia-Tormarchio/banconote-false.jpg)
 
 ```{r include_file, echo=TRUE}
 
