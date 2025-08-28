@@ -2,15 +2,16 @@
 title: "GR – Data Science Portfolio"
 ---
 
-👩‍💻 Ciao! Sono Guarino Renata, Junior Data Scientist
+👩‍💻 Ciao! Sono Renata Guarino, Data Scientist
 
-Mi occupo di modelli predittivi e analisi statistica, con particolare interesse per le applicazioni in ambito biomedico, sociale e finanziario.  
+Mi occupo di analisi statistica e machine learning, con particolare interesse per le applicazioni in ambito biomedico, demografico, economico e finanziario.
+  
 Lavoro principalmente con Python e R, sviluppando progetti che spaziano da:
 
 - 📊 Analisi di sopravvivenza e mortalità (modelli Lee-Carter, Renshaw-Haberman, Kaplan- Meier, Cox)
-- 🔬 Progetti biomedici con modelli predittivi (modelli predittivi, reti neurali)
+- 🔬 Progetti biomedici (modelli predittivi, reti neurali)
 - 💸 Clustering e classificazione 
-- 📉 Modellazione temporale su sterie storica
+- 📉 Modellazione temporale su sterie storiche
 - 🐶 Deep Learning su immagini
 - 🏘 Analisi demografica e territoriale (modelli predittivi GBM, RF,  GLM...)
 
@@ -23,6 +24,7 @@ Ogni progetto è documentato nel mio repository GitHub con notebook o Rmd, codic
 
 📬 Contatti
 
+📞 +39 345 988 00 90  
 📧 [guarino.renata@blu.it]  
 🔗 [LinkedIn](https://www.linkedin.com/in/renatag87/)  
 🌐 GitHub: [GR-DS](https://github.com/GR-DS)
